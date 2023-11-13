@@ -4,7 +4,7 @@ from ray.rllib.models.torch.misc import normc_initializer
 from torch.distributions import MultivariateNormal
 from torch_geometric.data import HeteroData
 from torch_geometric.utils import add_self_loops
-from torch_geometric.nn import FastRGCNConv
+from torch_geometric.nn import FastRGCNConv, GCNConv
 import torch.nn.functional as F
 
 
@@ -15,9 +15,13 @@ class GraphNet(nn.Module):
         self.embed_dim = embed_dim
         self.obs_space = obs_space
 
-        self.embeder = nn.Linear(
-            obs_space["node_features"]["gen"].shape[1],
-            self.embed_dim,
+        self.type_based_embeder = nn.ModuleDict(
+            {
+                node_type: nn.Linear(
+                    obs_space["node_features"][node_type].shape[1], self.embed_dim
+                )
+                for node_type in obs_space["node_features"]
+            }
         )
         self.conv1 = FastRGCNConv(
             in_channels=self.embed_dim,
@@ -35,31 +39,31 @@ class GraphNet(nn.Module):
         self.final_layer = nn.Linear(self.embed_dim, out_dim)
 
     def forward(self, input: HeteroData) -> torch.Tensor:
-        obs = input["gen"].x
-        x = self.embeder(obs)
-        x = self.act(
+        for node_type in self.obs_space["node_features"]:
+            input[node_type].x = self.type_based_embeder[node_type](input[node_type].x)
+        input["gen"].x = self.act(
             self.conv1(
-                x,
-                input[("gen", "self loops", "gen")].edge_index,
+                input["gen"].x,
+                input[("gen", "self loops gen", "gen")].edge_index,
                 edge_type=torch.zeros(
-                    (input[("gen", "self loops", "gen")].edge_index.shape[1],),
+                    (input[("gen", "self loops gen", "gen")].edge_index.shape[1],),
                     dtype=torch.int64,
                     device=input["gen"].x.device,
                 ),
             )
         )
-        x = self.act(
+        input["gen"].x = self.act(
             self.conv2(
-                x,
-                input[("gen", "self loops", "gen")].edge_index,
+                input["gen"].x,
+                input[("gen", "self loops gen", "gen")].edge_index,
                 edge_type=torch.zeros(
-                    (input[("gen", "self loops", "gen")].edge_index.shape[1],),
+                    (input[("gen", "self loops gen", "gen")].edge_index.shape[1],),
                     dtype=torch.int64,
                     device=input["gen"].x.device,
                 ),
             )
         )
-        x = self.final_layer(x)
+        x = self.final_layer(input["gen"].x)
         return x
 
 
@@ -98,13 +102,7 @@ class ActorCritic(nn.Module):
                     normc_initializer(1.0)(m.weight)
 
     def forward(self, input: HeteroData, state, seq_lens):
-        input[("gen", "self loops", "gen")].edge_index = torch.empty(
-            (2, 0), dtype=torch.int64, device=input["gen"].x.device
-        )
-        input[("gen", "self loops", "gen")].edge_index = add_self_loops(
-            input[("gen", "self loops", "gen")].edge_index,
-            num_nodes=input["gen"].x.shape[0],
-        )[0]
+        self.val = self.critic(input["gen"].x.view((input.num_graphs, -1))).reshape(-1)
         action = self.actor(input)  # .reshape(-1, self.n_dim, 2)
         mean = action[:, 0]
         log_std = action[:, 1]
@@ -115,7 +113,6 @@ class ActorCritic(nn.Module):
 
         std = F.softplus(log_std)
 
-        self.val = self.critic(input["gen"].x.view((input.num_graphs, -1))).reshape(-1)
 
         return mean, std, []
 

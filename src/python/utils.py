@@ -8,31 +8,19 @@ import numpy as np
 
 node_data_fields = {
     "substation": [
-        "id"
+        "val"
     ],  # All fields: {'id': 1, 'type': 'substation', 'name': 'sub_1', 'cooldown': 0}
     "bus": [
-        "v",
-        "theta",
-        "id",
+        "id"
     ],  # All fields: {'id': 2, 'global_id': 2, 'local_id': 1, 'type': 'bus', 'connected': True, 'v': 142.1, 'theta': -4.190119}
     "load": ["id"],  # {'id': 8, 'type': 'load', 'name': 'load_11_8', 'connected': True}
     "gen": [
-        # "id",
-        # "target_dispatch",
-        # "actual_dispath",
-        # "gen_p_before_curtal",
-        # "curtalment_mw",
-        # "curtailement",
-        # "curtailment_limit",
-        # "gen_margin_up",
-        # "gen_margin_down",
         "difference_dispatch",
         "target_dispatch",
         "actual_dispatch",
     ],  # {'id': 3, 'type': 'gen', 'name': 'gen_5_3', 'connected': True, 'target_dispatch': 0.0, 'actual_dispatch': 0.0, 'gen_p_before_curtail': 0.0, 'curtailment_mw': 0.0, 'curtailment': 0.0, 'curtailment_limit': 1.0, 'gen_margin_up': 0.0, 'gen_margin_down': 0.0}
     "line": [
-        "id",
-        "rho",
+        "rho"
     ],  # {'id': 1, 'type': 'line', 'name': '0_4_1', 'rho': 0.36042336, 'connected': True, 'timestep_overflow': 0, 'time_before_cooldown_line': 0, 'time_next_maintenance': -1, 'duration_next_maintenance': 0}
     "shunt": [
         "id"
@@ -77,7 +65,7 @@ node_observation_space = OrderedDict(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
         "bus": lambda n_lements: spaces.Box(
-            low=-np.inf, high=np.inf, shape=(n_lements, 3), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
         "load": lambda n_lements: spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
@@ -86,7 +74,7 @@ node_observation_space = OrderedDict(
             low=-1, high=1, shape=(n_lements, 3), dtype=np.float32
         ),
         "line": lambda n_lements: spaces.Box(
-            low=-np.inf, high=np.inf, shape=(n_lements, 2), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
         "shunt": lambda n_lements: spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
