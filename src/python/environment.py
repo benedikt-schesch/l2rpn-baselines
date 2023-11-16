@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Any
 from torch_geometric.data import HeteroData
 import grid2op
@@ -7,7 +6,6 @@ from lightsim2grid import LightSimBackend
 from ray.rllib.utils.spaces.repeated import Repeated
 from gymnasium import Env
 import matplotlib.pyplot as plt
-from gymnasium import spaces
 import io
 import numpy as np
 from PIL import Image
@@ -19,9 +17,12 @@ from collections import OrderedDict
 from utils import (
     edge_data_fields,
     node_data_fields,
-    node_observation_space,
 )
 from grid2op.Environment import Environment
+from torch_geometric.transforms import ToUndirected, AddSelfLoops
+
+MIN_POWER_VALUE = 0
+MAX_POWER_VALUE = 100
 
 
 class TestEnv(Env):
@@ -37,13 +38,18 @@ class TestEnv(Env):
         self.n_gen = self.env.n_gen
 
         # Observation space normalization factors
-        self.gen_pmax = self.env.observation_space.gen_pmax
-        self.gen_pmin = self.env.observation_space.gen_pmin
-        assert np.all(self.gen_pmax >= self.gen_pmin) and np.all(self.gen_pmin >= 0)  # type: ignore
+        self.gen_pmax = torch.tensor(self.env.observation_space.gen_pmax)
+        self.gen_pmin = torch.tensor(self.env.observation_space.gen_pmin)
+        assert torch.all(self.gen_pmax >= self.gen_pmin) and torch.all(
+            self.gen_pmin >= 0
+        )  # type: ignore
 
         # Observation space observation
         self.observation_space: ObservationSpace = ObservationSpace(self.env)
         self.elements_graph = self.env.reset().get_elements_graph()
+        self.elements_graph_pyg = self.observation_space.grid2op_to_pyg(
+            self.elements_graph
+        )
 
         # Action space
         self.action_space = spaces.Dict()
@@ -57,61 +63,95 @@ class TestEnv(Env):
             -self.env.observation_space.gen_max_ramp_down,  # type: ignore
         )
 
-    def normalize_obs(self, obs):
-        obs_diff_range = self.gen_pmax - self.gen_pmin  # type: ignore
-        obs[:, 0] = obs[:, 0] / obs_diff_range
-        obs[:, 1] = (obs[:, 1] - self.gen_pmin) / obs_diff_range
-        obs[:, 2] = (obs[:, 2] - self.gen_pmin) / obs_diff_range
-        return obs
-
     def denormalize_action(self, action):
         action = action * self.action_norm_factor
         # action["redispatch"] = action["redispatch"] * self.action_norm_factor
         return action
 
-    def observe(self):
-        obs = np.stack(
-            [
-                self.curr_state - self.target_state,
-                self.target_state,
-                self.curr_state,
-            ],
-            axis=1,
+    def get_neighbors(self, gen_id):
+        # This function returns the indices of all neighbors of the given generator node
+        neighbors = []
+        for edge in self.elements_graph_pyg["rev_gen_to_bus"].edge_index.T:
+            if edge[1] == gen_id:
+                neighbors.append(edge[0].item())
+        return neighbors
+
+    def set_observations(self, obs: HeteroData):
+        obs["gen"].x = torch.tensor(
+            np.stack(
+                [
+                    self.curr_state - self.target_state,
+                    self.target_state,
+                    self.curr_state,
+                ],
+                axis=1,
+            )
         )
-        obs = self.normalize_obs(obs)
-        obs_original = self.observation_space.grid2op_to_pyg(self.elements_graph)
-        obs_original["gen"].x = torch.tensor(obs)
-        # if not self.observation_space.contains(obs):
-        #     raise Exception("Invalid observation")
-        return obs_original
+        obs["bus"].x = torch.tensor(
+            np.stack(
+                [
+                    self.load_states["bus"],
+                ],
+                axis=1,
+            )
+        )
+        return obs
 
     def set_target_state(self):
-        self.target_state = np.random.uniform(  # type: ignore
-            low=self.env.observation_space.gen_pmin,  # type: ignore
-            high=self.env.observation_space.gen_pmax,  # type: ignore
-            size=(self.n_gen,),
-        ).astype(np.float32)
-        self.target_state[self.env.observation_space.gen_max_ramp_up == 0] = 0
+        self.target_state = torch.tensor(np.zeros(self.n_gen, dtype=np.float32))
+        # Compute the mean state of neighbors for each generator
+        for gen_id in range(self.n_gen):
+            neighbors = self.get_neighbors(gen_id)
+            if neighbors:
+                # Assuming all nodes have a unified indexing in self.load_states
+                neighbor_states = torch.tensor(
+                    [self.load_states["bus"][node_id] for node_id in neighbors]
+                )
+                self.target_state[gen_id] = torch.mean(neighbor_states)
+            else:
+                # If a generator has no neighbors, use 0 as the target state
+                self.target_state[gen_id] = 0
+
+    def observe(self):
+        obs = self.observation_space.grid2op_to_pyg(self.elements_graph)
+        obs = self.set_observations(obs)
+        return obs
+
+    def set_loads_sates(self):
+        self.load_states = {}
+        for node_type in self.elements_graph_pyg.node_types:
+            self.load_states[node_type] = torch.tensor(
+                np.random.uniform(
+                    low=MIN_POWER_VALUE,
+                    high=MAX_POWER_VALUE,
+                    size=(len(self.elements_graph_pyg[node_type].x),),
+                ).astype(np.float32)
+            )
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[Any, dict[str, Any]]:
-        np.random.seed(seed)
+        if seed is not None:
+            np.random.seed(seed)
+        self.set_loads_sates()
         self.set_target_state()
-        self.curr_state = np.zeros_like(self.target_state).astype(np.float32)
+        self.curr_state = torch.zeros_like(self.target_state)
         self.n_steps = 0
         return self.observe(), {}
 
+    def compute_distance(self):
+        return torch.abs(self.curr_state - self.target_state).sum()
+
     def step(self, action):
         action = self.denormalize_action(action)
-        initial_distance = np.linalg.norm(self.curr_state - self.target_state)
+        initial_distance = self.compute_distance()
         self.curr_state += action
-        self.curr_state = np.clip(
+        self.curr_state = torch.clip(
             self.curr_state,
-            self.env.observation_space.gen_pmin,
-            self.env.observation_space.gen_pmax,
+            self.gen_pmin,
+            self.gen_pmax,
         )
-        new_distance = np.linalg.norm(self.curr_state - self.target_state)
+        new_distance = self.compute_distance()
         reward = initial_distance - new_distance
         self.n_steps += 1
         done = self.n_steps >= 100
@@ -142,8 +182,34 @@ class TestEnv(Env):
             return img_arr
 
 
+node_observation_space = OrderedDict(
+    {
+        "substation": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
+        ),
+        "bus": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
+        ),
+        "load": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
+        ),
+        "gen": lambda n_lements: spaces.Box(
+            low=-1, high=1, shape=(n_lements, 3), dtype=np.float32
+        ),
+        "line": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 2), dtype=np.float32
+        ),
+        "shunt": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
+        ),
+    }
+)
+
+
 class ObservationSpace(spaces.Dict):
     def __init__(self, env: Environment):
+        self.add_self_loops = AddSelfLoops()
+        self.to_undirected = ToUndirected()
         graph = self.grid2op_to_pyg(env.reset().get_elements_graph())
 
         dic = OrderedDict()
@@ -218,5 +284,16 @@ class ObservationSpace(spaces.Dict):
             )
             if len(edge_data_fields[key[1]]) > 0:
                 graph[key].edge_attr = torch.stack(edge_features[key[1]])
+
+        graph = self.to_undirected(graph)
+
+        for node_type in graph.node_types:
+            graph[
+                (node_type, f"self loops {node_type}", node_type)
+            ].edge_index = torch.empty(
+                (2, 0), dtype=torch.int64, device=graph[node_type].x.device
+            )
+
+        graph = self.add_self_loops(graph)
 
         return graph

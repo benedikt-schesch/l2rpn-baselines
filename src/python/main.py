@@ -13,13 +13,13 @@ def train():
         "============================================================================================"
     )
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    run = wandb.init(
+    wandb.init(
         project="grid2op",
         notes=current_time,
     )
 
     ####### initialize environment hyperparameters ######
-    env_name = "RoboschoolWalker2d-v1"
+    env_name = "Grid2OpGeneratorTargetTestEnv"
 
     has_continuous_action_space = True  # continuous action space; else discrete
 
@@ -50,7 +50,7 @@ def train():
     lr_actor = 0.00003  # learning rate for actor network
     lr_critic = 0.0001  # learning rate for critic network
 
-    random_seed = 0  # set random seed if required (0 = no random seed)
+    random_seed = 42  # set random seed if required (0 = no random seed)
     #####################################################
 
     ################# logging variables #################
@@ -223,7 +223,7 @@ def train():
             if time_step % log_freq == 0:
                 # log average reward till last episode
                 log_avg_reward = log_running_reward / log_running_episodes
-                log_avg_reward = round(log_avg_reward, 4)
+                log_avg_reward = round(float(log_avg_reward), 4)
 
                 log_f.write("{},{},{}\n".format(i_episode, time_step, log_avg_reward))
                 log_f.flush()
@@ -235,7 +235,7 @@ def train():
             if time_step % print_freq == 0:
                 # print average reward till last episode
                 print_avg_reward = print_running_reward / print_running_episodes
-                print_avg_reward = round(print_avg_reward, 2)
+                print_avg_reward = round(float(print_avg_reward), 2)
 
                 print(
                     "Episode : {} \t\t Timestep : {} \t\t Average Reward : {} Entropy Loss weight: {}".format(
@@ -299,10 +299,16 @@ def train():
         "============================================================================================"
     )
 
+    agent_final_checkpoint = f"PPO_{env_name}_{random_seed}_{time_step}.pth"
+    ppo_agent.save(os.path.join(wandb.run.dir, agent_final_checkpoint))  # type: ignore
+    wandb.finish()
+
+    print("Training Done!")
+
 
 def draw_agent(env, ppo_agent: PPO, checkpoint_path):
     print("Start drawing agent")
-    obs, _ = env.reset(seed=0)
+    obs, _ = env.reset(seed=1)
     frames = []
     rewards = []
     done = False
