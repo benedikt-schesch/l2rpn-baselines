@@ -47,8 +47,8 @@ def train():
     entropy_max_loss = 0.0001
     entropy_min_loss = 0.0000001
 
-    lr_actor = 0.00003  # learning rate for actor network
-    lr_critic = 0.0001  # learning rate for critic network
+    lr_actor = 0.00001  # learning rate for actor network
+    lr_critic = 0.00003  # learning rate for critic network
 
     random_seed = 42  # set random seed if required (0 = no random seed)
     #####################################################
