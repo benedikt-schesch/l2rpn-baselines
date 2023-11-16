@@ -31,7 +31,7 @@ def train():
     print_freq = max_ep_len * 10  # print avg reward in the interval (in num timesteps)
     log_freq = max_ep_len * 2  # log avg reward in the interval (in num timesteps)
     save_model_freq = (
-        max_training_timesteps // 50
+        max_training_timesteps // 5
     )  # save model frequency (in num timesteps)
 
     #####################################################
@@ -72,9 +72,9 @@ def train():
     }
 
     print("training environment name : " + env_name)
-    from environment import TestEnv
+    from environment import Grid2OpEnv
 
-    env = TestEnv()
+    env = Grid2OpEnv()
 
     ###################### logging ######################
 

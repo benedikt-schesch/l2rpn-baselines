@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     ray.init()
     my_new_ppo = Algorithm.from_checkpoint(args.checkpoint)
-    environment = environment.TestEnv(env_name="l2rpn_case14_sandbox")
+    environment = environment.Grid2OpEnv(env_name="l2rpn_case14_sandbox")
 
     obs, _ = environment.reset(seed=0)
     frames = []

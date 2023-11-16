@@ -27,7 +27,7 @@ MIN_POWER_VALUE = 0
 MAX_POWER_VALUE = 100
 
 
-class TestEnv(Env):
+class Grid2OpEnv(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
         super().__init__()
         self.env_name = env_name
@@ -62,7 +62,10 @@ class TestEnv(Env):
             self.env.observation_space.gen_max_ramp_up,  # type: ignore
             -self.env.observation_space.gen_max_ramp_down,  # type: ignore
         )
-
+        
+        # Max steps
+        self._max_episode_steps = 100
+        
     def denormalize_action(self, action):
         action = action * self.action_norm_factor
         # action["redispatch"] = action["redispatch"] * self.action_norm_factor
@@ -87,6 +90,14 @@ class TestEnv(Env):
                 axis=1,
             )
         )
+        obs["bus"].x = torch.tensor(
+            np.stack(
+                [
+                    self.load_states["bus"],
+                ],
+                axis=1,
+            )
+        )
         return obs
 
     # def set_target_state(self):
@@ -100,10 +111,9 @@ class TestEnv(Env):
             neighbors = self.get_neighbors(gen_id)
             if neighbors:
                 # Assuming all nodes have a unified indexing in self.load_states
-                neighbor_states = torch.tensor(
-                    [self.load_states["bus"][node_id] for node_id in neighbors]
+                self.target_state[gen_id] = torch.mean(
+                    self.load_states["bus"][neighbors]
                 )
-                self.target_state[gen_id] = torch.mean(neighbor_states)
             else:
                 # If a generator has no neighbors, use 0 as the target state
                 self.target_state[gen_id] = 0
@@ -150,7 +160,7 @@ class TestEnv(Env):
         new_distance = self.compute_distance()
         reward = initial_distance - new_distance
         self.n_steps += 1
-        done = self.n_steps >= 100
+        done = self.n_steps >= self._max_episode_steps
         return self.observe(), reward, done, False, {}
 
     def render(self, mode="human"):
@@ -184,7 +194,7 @@ node_observation_space = OrderedDict(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
         "bus": lambda n_lements: spaces.Box(
-            low=-np.inf, high=np.inf, shape=(n_lements, 3), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
         "load": lambda n_lements: spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
