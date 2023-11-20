@@ -18,6 +18,7 @@ from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
 from grid2op.Action import DontAct
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
 
+
 class Grid2OpEnvRedispatchCurtail(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
         super().__init__()
@@ -27,7 +28,9 @@ class Grid2OpEnvRedispatchCurtail(Env):
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
             experimental_read_from_local_dir=True,
-            data_feeding_kwargs={"gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance},
+            data_feeding_kwargs={
+                "gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance
+            },
             opponent_attack_cooldown=999999,
             opponent_attack_duration=0,
             opponent_budget_per_ts=0,

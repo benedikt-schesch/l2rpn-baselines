@@ -1,7 +1,4 @@
 import argparse
-from xxlimited import Str
-
-from sympy import plot
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
 from PPO import PPO
 import pandas as pd
@@ -17,7 +14,6 @@ import matplotlib.pyplot as plt
 import imageio
 import os
 from pathlib import Path
-from grid2op.Episode import EpisodeReplay
 import io
 import numpy as np
 
@@ -44,6 +40,7 @@ class NoActionAgent:
     def select_action_eval(self, obs):
         return None
 
+
 class FullUpAgent:
     def __init__(self):
         pass
@@ -51,12 +48,14 @@ class FullUpAgent:
     def select_action_eval(self, obs):
         return np.ones(6)
 
+
 class FullDownAgent:
     def __init__(self):
         pass
 
     def select_action_eval(self, obs):
         return -np.ones(6)
+
 
 def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFrame:
     rewards = []
@@ -158,7 +157,7 @@ def plot_env(
         for i, category in enumerate(categories):
             with imageio.get_writer(dir / f"agent_{category}.gif", mode="I") as writer:
                 for image in images[i]:
-                    writer.append_data(image) # type: ignore
+                    writer.append_data(image)  # type: ignore
 
 
 def plot_power_generators(
@@ -250,9 +249,7 @@ if __name__ == "__main__":
         plot_power_generators(
             NoActionAgent(), env, directory / "baseline", chronic_id=i
         )
-        plot_power_generators(
-            FullUpAgent(), env, directory / "full_up", chronic_id=i
-        )
+        plot_power_generators(FullUpAgent(), env, directory / "full_up", chronic_id=i)
         plot_power_generators(
             FullDownAgent(), env, directory / "full_down", chronic_id=i
         )
