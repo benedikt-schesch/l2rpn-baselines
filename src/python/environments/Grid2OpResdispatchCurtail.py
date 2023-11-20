@@ -14,7 +14,9 @@ from collections import OrderedDict
 from grid2op.Environment import Environment
 from torch_geometric.transforms import ToUndirected, AddSelfLoops
 from grid2op.Observation import BaseObservation
-
+from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
+from grid2op.Action import DontAct
+from grid2op.Opponent import BaseOpponent, NeverAttackBudget
 
 class Grid2OpEnvRedispatchCurtail(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
@@ -25,6 +27,14 @@ class Grid2OpEnvRedispatchCurtail(Env):
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
             experimental_read_from_local_dir=True,
+            data_feeding_kwargs={"gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance},
+            opponent_attack_cooldown=999999,
+            opponent_attack_duration=0,
+            opponent_budget_per_ts=0,
+            opponent_init_budget=0,
+            opponent_action_class=DontAct,
+            opponent_class=BaseOpponent,
+            opponent_budget_class=NeverAttackBudget,
         )
         self.n_gen = self.grid2op_env.n_gen
 
