@@ -77,7 +77,7 @@ def train():
 
     print("training environment name : " + env_name)
 
-    env = Grid2OpEnvRedispatchCurtail()
+    env = Grid2OpEnvRedispatchCurtail(env_name="l2rpn_case14_sandbox_train")
 
     ################### checkpointing ###################
     directory = "logs/PPO"
@@ -171,7 +171,8 @@ def train():
             description="[magenta]Episodes...", total=None
         )
         task_steps = progress.add_task(
-            description="[cyan]Training...", total=max_training_timesteps
+            description="[cyan]Training...",
+            total=env.grid2op_env.chronics_handler.max_timestep(),
         )
         # training loop
         while not progress.finished:
@@ -281,7 +282,6 @@ def draw_agent(env, ppo_agent: PPO, checkpoint_path):
     for i in tqdm(range(100)):
         action = ppo_agent.select_action_eval(obs)
         obs, reward, done, terminated, _ = env.step(action)
-        # print(obs[:, 0])
         rewards.append(reward)
         frames.append(env.render(mode="rgb_array"))
         done = done or terminated

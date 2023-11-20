@@ -15,6 +15,8 @@ nm_env_train, nm_env_val, nm_env_test = env.train_val_split_random(
     add_for_test="test", pct_val=20.0, pct_test=10.0
 )
 
+for name in ["train", "val", "test"]:
+    grid2op.make(dataset=env_name + "_" + name).generate_classes()
 
 # and now you can use the training set only to train your agent:
 print(f"The name of the training environment is \\{nm_env_train}\\")

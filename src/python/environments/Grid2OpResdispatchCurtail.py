@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union
 from torch_geometric.data import HeteroData
 import grid2op
 from grid2op.Reward import LinesCapacityReward
@@ -13,30 +13,31 @@ import networkx as nx
 from collections import OrderedDict
 from grid2op.Environment import Environment
 from torch_geometric.transforms import ToUndirected, AddSelfLoops
+from grid2op.Observation import BaseObservation
 
 
 class Grid2OpEnvRedispatchCurtail(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
         super().__init__()
         self.env_name = env_name
-        self.env = grid2op.make(
+        self.grid2op_env = grid2op.make(
             env_name,
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
             experimental_read_from_local_dir=True,
         )
-        self.n_gen = self.env.n_gen
+        self.n_gen = self.grid2op_env.n_gen
 
         # Observation space normalization factors
-        self.gen_pmax = torch.tensor(self.env.observation_space.gen_pmax)
-        self.gen_pmin = torch.tensor(self.env.observation_space.gen_pmin)
+        self.gen_pmax = torch.tensor(self.grid2op_env.observation_space.gen_pmax)
+        self.gen_pmin = torch.tensor(self.grid2op_env.observation_space.gen_pmin)
         assert torch.all(self.gen_pmax >= self.gen_pmin) and torch.all(
             self.gen_pmin >= 0
         )  # type: ignore
 
         # Observation space observation
-        self.observation_space: ObservationSpace = ObservationSpace(self.env)
-        self.elements_graph = self.env.reset().get_elements_graph()
+        self.observation_space: ObservationSpace = ObservationSpace(self.grid2op_env)
+        self.elements_graph = self.grid2op_env.reset().get_elements_graph()
         self.elements_graph_pyg = self.observation_space.grid2op_to_pyg(
             self.elements_graph
         )
@@ -49,39 +50,52 @@ class Grid2OpEnvRedispatchCurtail(Env):
 
         # Action space normalization factor
         self.action_norm_factor = np.maximum(
-            self.env.observation_space.gen_max_ramp_up,  # type: ignore
-            -self.env.observation_space.gen_max_ramp_down,  # type: ignore
+            self.grid2op_env.observation_space.gen_max_ramp_up,  # type: ignore
+            -self.grid2op_env.observation_space.gen_max_ramp_down,  # type: ignore
         )
 
-    def denormalize_action(self, action):
+    def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
         action = action * self.action_norm_factor
         # action["redispatch"] = action["redispatch"] * self.action_norm_factor
         return action
 
     def reset(
-        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+        self,
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+        set_id: int | None = None,
     ) -> tuple[Any, dict[str, Any]]:
         if seed is not None:
             np.random.seed(seed)
-        obs = self.env.reset()
+            self.grid2op_env.seed(seed)
+        if set_id is not None:
+            self.grid2op_env.set_id(set_id)
+        obs = self.grid2op_env.reset()
+        self.grid2op_obs = obs
         elements_graph_pyg = self.observation_space.grid2op_to_pyg(
             obs.get_elements_graph()
         )
         return elements_graph_pyg, {}
 
-    def step(self, action):
-        action = self.denormalize_action(action)
-        grid2op_action = self.env.action_space()
-        grid2op_action.redispatch = action
+    def step(self, action: Union[None, torch.Tensor]):
+        grid2op_action = self.grid2op_env.action_space()
+        if action is not None:
+            action = self.denormalize_action(action)
+            grid2op_action.redispatch = action
 
-        obs, reward, done, info = self.env.step(grid2op_action)
+        obs, reward, done, info = self.grid2op_env.step(grid2op_action)
+        self.grid2op_obs = obs
         elements_graph_pyg = self.observation_space.grid2op_to_pyg(
             obs.get_elements_graph()
         )
         return elements_graph_pyg, reward, done, False, info
 
+    def get_grid2op_obs(self) -> BaseObservation:
+        return self.grid2op_obs
+
     def render(self, mode="rgb_array"):
-        return self.env.render(mode)
+        return self.grid2op_env.render(mode)
 
 
 class ObservationSpace(spaces.Dict):
