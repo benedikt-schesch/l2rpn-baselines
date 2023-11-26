@@ -4,7 +4,7 @@ import torch
 from ray.rllib.models.torch.misc import normc_initializer
 from torch.distributions import MultivariateNormal
 from torch_geometric.data import HeteroData
-from torch_geometric.nn import EdgeConv
+from torch_geometric.nn import CGConv
 import torch.nn.functional as F
 
 
@@ -16,14 +16,31 @@ class GraphNet(nn.Module):
         self.obs_space = obs_space
 
         self.node_embeder = nn.ModuleDict()
+        self.edge_embeder = nn.ModuleDict()
         for node_type in obs_space["node_features"]:
             self.node_embeder[node_type] = nn.Linear(
                 obs_space["node_features"][node_type].shape[1], embed_dim
             )
-        self.conv1 = EdgeConv(
-            nn=nn.Linear(2 * self.embed_dim, self.embed_dim),
+        for edge_type in obs_space["edge_features"]:
+            self.edge_embeder[str(edge_type)] = nn.Linear(
+                obs_space["edge_features"][edge_type].shape[1], embed_dim
+            )
+        self.conv1 = CGConv(
+            embed_dim,
+            embed_dim,
             aggr="mean",
         )
+        self.conv2 = CGConv(
+            embed_dim,
+            embed_dim,
+            aggr="mean",
+        )
+        self.conv3 = CGConv(
+            embed_dim,
+            embed_dim,
+            aggr="mean",
+        )
+
         self.act = nn.ReLU()
         self.final_layer = nn.Linear(2 * self.embed_dim, out_dim)
         self.val_layer = nn.Linear(2 * 6 * self.embed_dim, 1)
@@ -37,10 +54,26 @@ class GraphNet(nn.Module):
             input[node_type].x = self.node_embeder[node_type](
                 input[node_type].x.float()
             )
+        for edge_type in self.obs_space["edge_features"]:
+            input[edge_type].edge_attr = self.edge_embeder[str(edge_type)](
+                input[edge_type].edge_attr.float()
+            )
         input_homogeneous = input.to_homogeneous()
         skip_connection = input_homogeneous.x[input_homogeneous.node_type == 3]
         input_homogeneous.x = self.act(  # type: ignore
             self.conv1(
+                input_homogeneous.x,
+                input_homogeneous.edge_index,
+            ),
+        )
+        input_homogeneous.x = self.act(  # type: ignore
+            self.conv2(
+                input_homogeneous.x,
+                input_homogeneous.edge_index,
+            ),
+        )
+        input_homogeneous.x = self.act(  # type: ignore
+            self.conv2(
                 input_homogeneous.x,
                 input_homogeneous.edge_index,
             ),

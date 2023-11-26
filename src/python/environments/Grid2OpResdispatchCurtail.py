@@ -115,7 +115,9 @@ class ObservationSpace(spaces.Dict):
     def __init__(self, env: Environment):
         self.add_self_loops = AddSelfLoops()
         self.to_undirected = ToUndirected()
-        graph = self.grid2op_to_pyg(env.reset().get_elements_graph())
+        graph = self.grid2op_to_pyg(
+            env.reset().get_elements_graph(), reverse_edges=True, self_edges=True
+        )
 
         dic = OrderedDict()
         dic["node_features"] = spaces.Dict()
@@ -127,6 +129,7 @@ class ObservationSpace(spaces.Dict):
 
         # Add edges
         dic["edge_list"] = spaces.Dict()
+        dic["edge_features"] = spaces.Dict()
         for edge_type, _ in graph.edge_items():
             num_node_type_source = len(graph[edge_type[0]].x)
             num_node_type_target = len(graph[edge_type[2]].x)
@@ -134,10 +137,25 @@ class ObservationSpace(spaces.Dict):
                 spaces.MultiDiscrete([num_node_type_source, num_node_type_target]),
                 max_len=num_node_type_source * num_node_type_target,
             )
+            if edge_type[1].startswith("rev_"):
+                dic["edge_features"][edge_type] = edge_observation_space[
+                    (edge_type[2], edge_type[1][4:], edge_type[0])
+                ](  # type: ignore
+                    len(graph[edge_type[0]].x)
+                )
+            else:
+                dic["edge_features"][edge_type] = edge_observation_space[edge_type](  # type: ignore
+                    len(graph[edge_type[0]].x)
+                )
 
         spaces.Dict.__init__(self, dic)
 
-    def grid2op_to_pyg(self, elements_graph: nx.DiGraph) -> HeteroData:
+    def grid2op_to_pyg(
+        self,
+        elements_graph: nx.DiGraph,
+        reverse_edges: bool = True,
+        self_edges: bool = True,
+    ) -> HeteroData:
         # Initialize HeteroData
         graph = HeteroData()
         id_map = defaultdict(lambda: defaultdict(int))
@@ -176,11 +194,16 @@ class ObservationSpace(spaces.Dict):
             edge_types[(src_type, edge_type, dst_type)].append(
                 (id_map[src_type][src], id_map[dst_type][dst])
             )
-            edge_features[edge_type].append(
-                torch.tensor(
-                    [attr.get(field, 0) for field in edge_data_fields[edge_type]]
+            if edge_type != "bus_to_substation":
+                edge_features[edge_type].append(
+                    torch.ones(len(edge_data_fields[edge_type]))
                 )
-            )
+            else:
+                edge_features[edge_type].append(
+                    torch.tensor(
+                        [attr.get(field, 0) for field in edge_data_fields[edge_type]]
+                    )
+                )
 
         # Populate HeteroData edges and edge features
         for key, vals in edge_types.items():
@@ -189,17 +212,18 @@ class ObservationSpace(spaces.Dict):
             )
             if len(edge_data_fields[key[1]]) > 0:
                 graph[key].edge_attr = torch.stack(edge_features[key[1]])
+        if reverse_edges:
+            graph = self.to_undirected(graph)
 
-        graph = self.to_undirected(graph)
+        # for node_type in graph.node_types:
+        #     graph[
+        #         (node_type, f"self loops {node_type}", node_type)
+        #     ].edge_index = torch.empty(
+        #         (2, 0), dtype=torch.int64, device=graph[node_type].x.device
+        #     )
 
-        for node_type in graph.node_types:
-            graph[
-                (node_type, f"self loops {node_type}", node_type)
-            ].edge_index = torch.empty(
-                (2, 0), dtype=torch.int64, device=graph[node_type].x.device
-            )
-
-        graph = self.add_self_loops(graph)
+        if self_edges:
+            graph = self.add_self_loops(graph)
 
         return graph
 
@@ -264,9 +288,31 @@ node_data_fields = OrderedDict(
     }
 )
 
+edge_observation_space = OrderedDict(
+    {
+        ("bus", "bus_to_substation", "substation"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
+        ),
+        ("load", "load_to_bus", "bus"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 5), dtype=np.float32
+        ),
+        ("gen", "gen_to_bus", "bus"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 5), dtype=np.float32
+        ),
+        ("line", "line_to_bus", "bus"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 6), dtype=np.float32
+        ),
+        ("shunt", "shunt_to_bus", "bus"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 4), dtype=np.float32
+        ),
+    }
+)
+
 edge_data_fields = OrderedDict(
     {
-        "bus_to_substation": {},
+        "bus_to_substation": {
+            "constant",
+        },
         "load_to_bus": {
             "id",
             "p",

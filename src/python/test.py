@@ -1,4 +1,5 @@
 import argparse
+from typing import List
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
 from PPO import PPO
 import pandas as pd
@@ -162,7 +163,7 @@ def plot_env(
 
 def plot_power_generators(
     model, env: Grid2OpEnvRedispatchCurtail, dir: Path, chronic_id: int = 1
-):
+) -> List[float]:
     dir.mkdir(parents=True, exist_ok=True)
     obs, info = env.reset(seed=chronic_id, set_id=chronic_id)
     done, time_step = False, 0
@@ -170,7 +171,7 @@ def plot_power_generators(
     # Initialize lists to store values for each generator
     power_levels = [[] for _ in range(6)]
     redispatch_values = [[] for _ in range(6)]
-
+    rewards = []
     with Progress(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
@@ -181,6 +182,7 @@ def plot_power_generators(
         while True:
             action = model.select_action_eval(obs)
             obs, reward, done, terminated, info = env.step(action)
+            rewards.append(reward)
             progress.advance(task_step, 1)
 
             # Update lists with values from the current step
@@ -222,6 +224,8 @@ def plot_power_generators(
     plt.savefig(dir / "redispatching_plot.pdf")
     plt.close(fig)
 
+    return rewards
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -245,19 +249,33 @@ if __name__ == "__main__":
     for i in [1, 2, 3]:
         directory = args.checkpoint_dir / f"chronic{i}"
         print(f"Plotting power generators for chronic {i}")
-        plot_power_generators(model, env, directory, chronic_id=i)
-        plot_power_generators(
+        rewards = plot_power_generators(model, env, directory, chronic_id=i)
+        rewards_no_action = plot_power_generators(
             NoActionAgent(), env, directory / "baseline", chronic_id=i
         )
-        plot_power_generators(FullUpAgent(), env, directory / "full_up", chronic_id=i)
-        plot_power_generators(
+        rewards_full_up = plot_power_generators(
+            FullUpAgent(), env, directory / "full_up", chronic_id=i
+        )
+        rewards_full_down = plot_power_generators(
             FullDownAgent(), env, directory / "full_down", chronic_id=i
         )
+
+        print(f"Plotting rewards for chronic {i}")
+        plt.figure()
+        plt.plot(rewards, label="Agent")
+        plt.plot(rewards_no_action, label="Baseline")
+        plt.plot(rewards_full_up, label="Full Up")
+        plt.plot(rewards_full_down, label="Full Down")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(directory / "rewards_plot.pdf")
+        plt.close()
+
         print(f"Plotting environment for chronic {i}")
         plot_env(model, env, directory, chronic_id=i)
-        plot_env(NoActionAgent(), env, directory / "baseline", chronic_id=i)
-        plot_env(FullUpAgent(), env, directory / "full_up", chronic_id=i)
-        plot_env(FullDownAgent(), env, directory / "full_down", chronic_id=i)
+        # plot_env(NoActionAgent(), env, directory / "baseline", chronic_id=i)
+        # plot_env(FullUpAgent(), env, directory / "full_up", chronic_id=i)
+        # plot_env(FullDownAgent(), env, directory / "full_down", chronic_id=i)
 
     print("Testing agent")
     model_df = test_env(env, model, args.n_episodes)
