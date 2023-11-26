@@ -109,8 +109,8 @@ class Grid2OpEnvRedispatchCurtail(Env):
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)
-    
-    def get_grid2op_env(self)->Environment:
+
+    def get_grid2op_env(self) -> Environment:
         return self.grid2op_env
 
 

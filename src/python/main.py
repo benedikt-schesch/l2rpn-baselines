@@ -6,8 +6,10 @@ import imageio
 import wandb
 from tqdm import tqdm
 from PPO import PPO
-from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
-from environments.Grid2OpResdispatchCurtailFlattened import Grid2OpEnvRedispatchCurtailFlattened
+from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail  # noqa: F401
+from environments.Grid2OpResdispatchCurtailFlattened import (
+    Grid2OpEnvRedispatchCurtailFlattened,
+)
 from rich.progress import (
     Progress,
     BarColumn,

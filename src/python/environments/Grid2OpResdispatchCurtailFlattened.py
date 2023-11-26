@@ -1,4 +1,4 @@
-from typing import Any, Union, Tuple
+from typing import Union, Tuple
 import torch
 from gymnasium import Env
 from gymnasium import spaces
@@ -6,6 +6,7 @@ from torch_geometric.data import HeteroData
 from .Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
 from grid2op.Environment import Environment
 from collections import OrderedDict
+
 
 class Grid2OpEnvRedispatchCurtailFlattened(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
@@ -28,17 +29,31 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
             selected_fields = node_data_fields[node_type]
             if len(selected_fields) == 0:
                 continue
-            features = torch.stack([hetero_data[node_type].x[:, i] for i, field in enumerate(selected_fields)], dim=1)
+            features = torch.stack(
+                [
+                    hetero_data[node_type].x[:, i]
+                    for i, field in enumerate(selected_fields)
+                ],
+                dim=1,
+            )
             node_features.append(features.flatten())
 
         flattened_node_features = torch.cat(node_features)
 
         # Extract and flatten all edge features
-        edge_features = [hetero_data[edge_type].edge_attr.flatten() for edge_type in hetero_data.edge_types if not edge_type[1].startswith("rev_")]
-        flattened_edge_features = torch.cat(edge_features) if edge_features else torch.tensor([])
+        edge_features = [
+            hetero_data[edge_type].edge_attr.flatten()
+            for edge_type in hetero_data.edge_types
+            if not edge_type[1].startswith("rev_")
+        ]
+        flattened_edge_features = (
+            torch.cat(edge_features) if edge_features else torch.tensor([])
+        )
 
         # Combine node and edge features
-        return torch.cat([flattened_node_features, flattened_edge_features]).unsqueeze(0)
+        return torch.cat([flattened_node_features, flattened_edge_features]).unsqueeze(
+            0
+        )
 
     def reset(self, **kwargs) -> Tuple[torch.Tensor, dict]:
         hetero_data, info = self.base_env.reset(**kwargs)
@@ -46,7 +61,9 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
         assert obs.shape[1] == self.feature_dim
         return obs, info
 
-    def step(self, action: Union[None, torch.Tensor]) -> Tuple[torch.Tensor, float, bool, bool, dict]:
+    def step(
+        self, action: Union[None, torch.Tensor]
+    ) -> Tuple[torch.Tensor, float, bool, bool, dict]:
         hetero_data, reward, done, _, info = self.base_env.step(action)
         obs = self.flatten_features(hetero_data)
         if not done:
@@ -59,6 +76,8 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
 
     def get_grid2op_env(self) -> Environment:
         return self.base_env.get_grid2op_env()
+
+
 node_data_fields = OrderedDict(
     {
         "substation": [
