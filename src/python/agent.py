@@ -60,27 +60,36 @@ class GraphNet(nn.Module):
             )
         input_homogeneous = input.to_homogeneous()
         skip_connection = input_homogeneous.x[input_homogeneous.node_type == 3]
-        input_homogeneous.x = self.act(  # type: ignore
-            self.conv1(
-                input_homogeneous.x,
-                input_homogeneous.edge_index,
-                input_homogeneous.edge_attr,
-            ),
-        )+input_homogeneous.x
-        input_homogeneous.x = self.act(  # type: ignore
-            self.conv2(
-                input_homogeneous.x,
-                input_homogeneous.edge_index,
-                input_homogeneous.edge_attr,
-            ),
-        )+input_homogeneous.x
-        input_homogeneous.x = self.act(  # type: ignore
-            self.conv2(
-                input_homogeneous.x,
-                input_homogeneous.edge_index,
-                input_homogeneous.edge_attr,
-            ),
-        )+input_homogeneous.x
+        input_homogeneous.x = (
+            self.act(  # type: ignore
+                self.conv1(
+                    input_homogeneous.x,
+                    input_homogeneous.edge_index,
+                    input_homogeneous.edge_attr,
+                ),
+            )
+            + input_homogeneous.x
+        )
+        input_homogeneous.x = (
+            self.act(  # type: ignore
+                self.conv2(
+                    input_homogeneous.x,
+                    input_homogeneous.edge_index,
+                    input_homogeneous.edge_attr,
+                ),
+            )
+            + input_homogeneous.x
+        )
+        input_homogeneous.x = (
+            self.act(  # type: ignore
+                self.conv2(
+                    input_homogeneous.x,
+                    input_homogeneous.edge_index,
+                    input_homogeneous.edge_attr,
+                ),
+            )
+            + input_homogeneous.x
+        )
 
         gen_embeddings = input_homogeneous.x[input_homogeneous.node_type == 3]
         gen_embeddings = torch.cat([gen_embeddings, skip_connection], dim=1)
