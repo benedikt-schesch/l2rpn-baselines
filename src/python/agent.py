@@ -97,6 +97,45 @@ class GraphNet(nn.Module):
     def get_critic_params(self):
         return self.val_layer.parameters()
 
+class FlatNet(nn.Module):
+    def __init__(self, obs_space, action_space, embed_dim, out_dim):
+        super().__init__()
+        self.n_dim = action_space["redispatch"].shape[0]  # type: ignore
+        self.embed_dim = embed_dim
+        self.obs_space = obs_space
+        self.gen_dim = action_space["redispatch"].shape[0]
+
+        self.model = nn.Sequential(
+            nn.LazyLinear(self.embed_dim),
+            nn.LeakyReLU(),
+            nn.LazyLinear(self.embed_dim),
+            nn.LeakyReLU(),
+        )
+        self.final_layer = nn.Linear(self.embed_dim, out_dim*action_space["redispatch"].shape[0])
+        self.val_layer = nn.Linear(self.embed_dim, 1)
+
+
+        normc_initializer(0.001)(self.final_layer.weight)
+        normc_initializer(0.001)(self.val_layer.weight)
+
+    def forward(
+        self, input: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        gen_embeddings = self.model(input)
+        value = self.val_layer(gen_embeddings)
+        action = self.final_layer(gen_embeddings)
+        action_mean = action[:,:self.gen_dim].reshape(input.shape[0], -1)
+        action_std = F.softplus(action[:,self.gen_dim:]).reshape(input.shape[0], -1)
+        return action_mean, action_std, value
+    
+    def get_backbone_params(self):
+        return self.model.parameters()
+    
+    def get_actor_params(self):
+        return self.final_layer.parameters()
+    
+    def get_critic_params(self):
+        return self.val_layer.parameters()
 
 class ActorCritic(nn.Module):
     def __init__(self, obs_space, action_space):
@@ -105,7 +144,7 @@ class ActorCritic(nn.Module):
         self.embed_dim = 16
 
         self.original_space = obs_space
-        self.agent = GraphNet(obs_space, action_space, self.embed_dim, 2)
+        self.agent = FlatNet(obs_space, action_space, self.embed_dim, 2)
 
     def forward(self, input: HeteroData):
         mean, std, self.val = self.agent(input.clone())

@@ -109,6 +109,9 @@ class Grid2OpEnvRedispatchCurtail(Env):
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)
+    
+    def get_grid2op_env(self)->Environment:
+        return self.grid2op_env
 
 
 class ObservationSpace(spaces.Dict):
@@ -214,13 +217,6 @@ class ObservationSpace(spaces.Dict):
                 graph[key].edge_attr = torch.stack(edge_features[key[1]])
         if reverse_edges:
             graph = self.to_undirected(graph)
-
-        # for node_type in graph.node_types:
-        #     graph[
-        #         (node_type, f"self loops {node_type}", node_type)
-        #     ].edge_index = torch.empty(
-        #         (2, 0), dtype=torch.int64, device=graph[node_type].x.device
-        #     )
 
         if self_edges:
             graph = self.add_self_loops(graph)

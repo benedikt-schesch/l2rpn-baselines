@@ -7,6 +7,7 @@ import wandb
 from tqdm import tqdm
 from PPO import PPO
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from environments.Grid2OpResdispatchCurtailFlattened import Grid2OpEnvRedispatchCurtailFlattened
 from rich.progress import (
     Progress,
     BarColumn,
@@ -27,7 +28,7 @@ def train():
     )
 
     ####### initialize environment hyperparameters ######
-    env_name = "Grid2OpGeneratorTargetTestEnv"
+    env_name = "Grid2OpEnvRedispatchCurtailFlattened"
 
     has_continuous_action_space = True  # continuous action space; else discrete
 
@@ -77,7 +78,7 @@ def train():
 
     print("training environment name : " + env_name)
 
-    env = Grid2OpEnvRedispatchCurtail(env_name="l2rpn_case14_sandbox_train")
+    env = Grid2OpEnvRedispatchCurtailFlattened(env_name="l2rpn_case14_sandbox_train")
 
     ################### checkpointing ###################
     directory = "logs/PPO"
@@ -170,19 +171,20 @@ def train():
         task_episodes = progress.add_task(
             description="[magenta]Episodes...", total=None
         )
-        task_steps = progress.add_task(
-            description="[cyan]Training...",
-            total=env.grid2op_env.chronics_handler.max_timestep(),
-        )
         # training loop
         while not progress.finished:
+            task_steps = progress.add_task(
+                description="[cyan]Training...",
+                total=env.get_grid2op_env().chronics_handler.max_timestep(),
+            )
             state, _ = env.reset()
             current_ep_reward = 0
+            done = False
 
-            while True:
+            while not done:
                 # select action with policy
                 action = ppo_agent.select_action(state)
-                state, reward, done, _, _ = env.step(action)
+                state, reward, done, terminated, info = env.step(action)
 
                 # saving reward and is_terminals
                 ppo_agent.buffer.rewards.append(reward)
@@ -204,7 +206,7 @@ def train():
                     )
 
                 # break; if the episode is over
-                if done:
+                if terminated:
                     break
             i_episode += 1
             progress.update(task_episodes, advance=1)
