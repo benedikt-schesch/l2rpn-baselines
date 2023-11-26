@@ -4,7 +4,7 @@ import torch
 from ray.rllib.models.torch.misc import normc_initializer
 from torch.distributions import MultivariateNormal
 from torch_geometric.data import HeteroData
-from torch_geometric.nn import CGConv
+from torch_geometric.nn import GATConv
 import torch.nn.functional as F
 
 
@@ -25,17 +25,17 @@ class GraphNet(nn.Module):
             self.edge_embeder[str(edge_type)] = nn.Linear(
                 obs_space["edge_features"][edge_type].shape[1], embed_dim
             )
-        self.conv1 = CGConv(
+        self.conv1 = GATConv(
             embed_dim,
             embed_dim,
             aggr="mean",
         )
-        self.conv2 = CGConv(
+        self.conv2 = GATConv(
             embed_dim,
             embed_dim,
             aggr="mean",
         )
-        self.conv3 = CGConv(
+        self.conv3 = GATConv(
             embed_dim,
             embed_dim,
             aggr="mean",
@@ -64,20 +64,23 @@ class GraphNet(nn.Module):
             self.conv1(
                 input_homogeneous.x,
                 input_homogeneous.edge_index,
+                input_homogeneous.edge_attr,
             ),
-        )
+        )+input_homogeneous.x
         input_homogeneous.x = self.act(  # type: ignore
             self.conv2(
                 input_homogeneous.x,
                 input_homogeneous.edge_index,
+                input_homogeneous.edge_attr,
             ),
-        )
+        )+input_homogeneous.x
         input_homogeneous.x = self.act(  # type: ignore
             self.conv2(
                 input_homogeneous.x,
                 input_homogeneous.edge_index,
+                input_homogeneous.edge_attr,
             ),
-        )
+        )+input_homogeneous.x
 
         gen_embeddings = input_homogeneous.x[input_homogeneous.node_type == 3]
         gen_embeddings = torch.cat([gen_embeddings, skip_connection], dim=1)

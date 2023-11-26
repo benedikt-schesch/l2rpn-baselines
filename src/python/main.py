@@ -32,8 +32,8 @@ def train():
     has_continuous_action_space = True  # continuous action space; else discrete
 
     max_ep_len = 50000  # max timesteps in one episode
-    max_training_timesteps = (
-        500000  # break training loop if timeteps > max_training_timesteps
+    max_training_episodes = (
+        100000  # break training loop if timeteps > max_training_episodes
     )
 
     print_freq = 1  # print avg reward in the interval (in num timesteps)
@@ -63,7 +63,7 @@ def train():
         "env_name": env_name,
         "has_continuous_action_space": has_continuous_action_space,
         "max_ep_len": max_ep_len,
-        "max_training_timesteps": max_training_timesteps,
+        "max_training_episodes": max_training_episodes,
         "print_freq": print_freq,
         "save_model_freq": save_model_freq,
         "update_timestep": update_timestep,
@@ -96,7 +96,7 @@ def train():
     print(
         "--------------------------------------------------------------------------------------------"
     )
-    print("max training timesteps : ", max_training_timesteps)
+    print("max training timesteps : ", max_training_episodes)
     print("max timesteps per episode : ", max_ep_len)
     print("model saving frequency : " + str(save_model_freq) + " timesteps")
     print(
@@ -168,7 +168,7 @@ def train():
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
         task_episodes = progress.add_task(
-            description="[magenta]Episodes...", total=None
+            description="[magenta]Episodes...", total=max_training_episodes
         )
         task_steps = progress.add_task(
             description="[cyan]Training...",
@@ -178,11 +178,12 @@ def train():
         while not progress.finished:
             state, _ = env.reset()
             current_ep_reward = 0
+            done = False
 
-            while True:
+            while not done:
                 # select action with policy
                 action = ppo_agent.select_action(state)
-                state, reward, done, _, _ = env.step(action)
+                state, reward, done, terminated, info = env.step(action)
 
                 # saving reward and is_terminals
                 ppo_agent.buffer.rewards.append(reward)
@@ -200,11 +201,11 @@ def train():
                         entropy_max_loss
                         - (entropy_max_loss - entropy_min_loss)
                         * time_step
-                        / max_training_timesteps,
+                        / max_training_episodes,
                     )
 
                 # break; if the episode is over
-                if done:
+                if terminated:
                     break
             i_episode += 1
             progress.update(task_episodes, advance=1)
