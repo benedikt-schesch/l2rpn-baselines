@@ -39,21 +39,41 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
             node_features.append(features.flatten())
 
         flattened_node_features = torch.cat(node_features)
+        # Define expected number of edges and default features for each edge type
+        expected_edges = {
+            edge_type: (expected_number_of_edges, default_feature_vector)
+            for edge_type, expected_number_of_edges, default_feature_vector in [
+                # Example: ("edge_type_name", 10, torch.zeros(feature_length)),
+                # Add entries for each edge type with their expected number of edges and default features
+            ]
+        }
 
-        # Extract and flatten all edge features
-        edge_features = [
-            hetero_data[edge_type].edge_attr.flatten()
-            for edge_type in hetero_data.edge_types
-            if not edge_type[1].startswith("rev_")
-        ]
+        # Extract and flatten all edge features, ensuring consistent number of edges
+        edge_features = []
+        for edge_type, (expected_count, default_features) in expected_edges.items():
+            if edge_type in hetero_data.edge_types:
+                current_edge_features = hetero_data[edge_type].edge_attr
+                edge_count_difference = expected_count - current_edge_features.size(0)
+                if edge_count_difference > 0:
+                    # Append default features to match the expected count
+                    padding = default_features.unsqueeze(0).repeat(edge_count_difference, 1)
+                    current_edge_features = torch.cat([current_edge_features, padding], dim=0)
+                edge_features.append(current_edge_features.flatten())
+            else:
+                # Use default features for the entire edge type if it's completely missing
+                edge_features.append(default_features.repeat(expected_count).flatten())
+
         flattened_edge_features = (
             torch.cat(edge_features) if edge_features else torch.tensor([])
         )
+
 
         # Combine node and edge features
         return torch.cat([flattened_node_features, flattened_edge_features]).unsqueeze(
             0
         )
+    def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
+        return self.base_env.denormalize_action(action)
 
     def reset(self, **kwargs) -> Tuple[torch.Tensor, dict]:
         hetero_data, info = self.base_env.reset(**kwargs)
@@ -77,7 +97,9 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
     def get_grid2op_env(self) -> Environment:
         return self.base_env.get_grid2op_env()
 
-
+    def get_grid2op_obs(self):
+        return self.base_env.get_grid2op_obs()
+    
 node_data_fields = OrderedDict(
     {
         "substation": [

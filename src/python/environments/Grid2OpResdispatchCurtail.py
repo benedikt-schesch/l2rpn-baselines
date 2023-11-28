@@ -28,7 +28,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             env_name,
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
-            chronics_class=MultifolderWithCache,
             data_feeding_kwargs={
                 "gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance
             },
@@ -40,7 +39,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             opponent_class=BaseOpponent,
             opponent_budget_class=NeverAttackBudget,
         )
-        self.grid2op_env.chronics_handler.reset()
         self.n_gen = self.grid2op_env.n_gen
 
         # Observation space normalization factors

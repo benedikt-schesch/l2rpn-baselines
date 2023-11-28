@@ -255,6 +255,7 @@ def train():
             wandb.log({"reward": current_ep_reward, "timestep": time_step})
             print_running_reward += current_ep_reward
             print_running_episodes += 1
+            progress.remove_task(task_steps)
 
     env.close()
 

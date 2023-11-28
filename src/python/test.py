@@ -1,6 +1,9 @@
 import argparse
 from typing import List
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from environments.Grid2OpResdispatchCurtailFlattened import (
+    Grid2OpEnvRedispatchCurtailFlattened,
+)
 from PPO import PPO
 import pandas as pd
 from rich.progress import (
@@ -58,7 +61,7 @@ class FullDownAgent:
         return -np.ones(6)
 
 
-def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFrame:
+def test_env(env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1) -> pd.DataFrame:
     rewards = []
     episode_length = []
     with Progress(
@@ -66,7 +69,7 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
     ) as progress:
         task_episode = progress.add_task("[red]Episode...", total=n_episodes)
         task_step = progress.add_task(
-            "[green]Step...", total=env.grid2op_env.chronics_handler.max_timestep()
+            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
         )
         for episode_idx in range(n_episodes):
             obs, info = env.reset(seed=episode_idx, set_id=episode_idx)
@@ -85,7 +88,7 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
             print(f"Episode {episode_idx + 1}/{n_episodes}")
             print(f"Episode reward: {rewards[-1]}")
             print(
-                f"Episode length: {episode_length[-1]} / {env.grid2op_env.chronics_handler.max_timestep()}"
+                f"Episode length: {episode_length[-1]} / {env.get_grid2op_env().chronics_handler.max_timestep()}"
             )
     print(f"Average reward: {sum(rewards) / n_episodes}")
     print(f"Average episode length: {sum(episode_length) / n_episodes}")
@@ -109,7 +112,7 @@ def convert_figure_to_numpy_HWC(figure):
 def create_plot(
     obs, env: Grid2OpEnvRedispatchCurtail, gen_info: str = "actual_dispatch"
 ):
-    plot_helper = PlotMatplot(env.grid2op_env.observation_space)
+    plot_helper = PlotMatplot(env.get_grid2op_env().observation_space)
     # fig = plot_helper.plot_obs(obs, gen_info="actual_dispatch")
     fig = plot_helper.plot_obs(obs, gen_info=gen_info)
     img_arr = convert_figure_to_numpy_HWC(fig)
@@ -134,7 +137,7 @@ def plot_env(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
         task_step = progress.add_task(
-            "[green]Step...", total=env.grid2op_env.chronics_handler.max_timestep()
+            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
         )
 
         while not done:
@@ -176,7 +179,7 @@ def plot_power_generators(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
         task_step = progress.add_task(
-            "[green]Step...", total=env.grid2op_env.chronics_handler.max_timestep()
+            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
         )
 
         while True:
@@ -232,7 +235,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint_dir",
         type=Path,
-        default="logs/PPO/Grid2OpGeneratorTargetTestEnv/2023-11-16-12-11-09/time_step_3619873/",
+        default="logs/PPO/Grid2OpEnvRedispatchCurtailFlattened//2023-11-27-14-14-14/time_step_7627532/",
     )
     parser.add_argument("--n_episodes", type=int, default=10)
     args = parser.parse_args()
@@ -241,9 +244,9 @@ if __name__ == "__main__":
         / [f for f in os.listdir(args.checkpoint_dir) if f.endswith(".pth")][0]
     )
 
-    env = Grid2OpEnvRedispatchCurtail("l2rpn_case14_sandbox_val")
-    env.grid2op_env.chronics_handler.seed(1)
-    env.grid2op_env.seed(1)
+    env = Grid2OpEnvRedispatchCurtailFlattened("l2rpn_case14_sandbox_val")
+    # env.grid2op_env.chronics_handler.seed(1)
+    # env.grid2op_env.seed(1)
     model = get_model(env, checkpoint_path)
 
     for i in [1, 2, 3]:

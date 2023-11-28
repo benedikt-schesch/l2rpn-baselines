@@ -119,7 +119,7 @@ class FlatNet(nn.Module):
         self.gen_dim = action_space["redispatch"].shape[0]
 
         self.model = nn.Sequential(
-            nn.LazyLinear(self.embed_dim),
+            nn.LazyLinear(self.embed_dim*2),
             nn.LeakyReLU(),
             nn.LazyLinear(self.embed_dim),
             nn.LeakyReLU(),
@@ -156,7 +156,7 @@ class ActorCritic(nn.Module):
     def __init__(self, obs_space, action_space):
         nn.Module.__init__(self)
         self.n_dim = action_space["redispatch"].shape[0]  # type: ignore
-        self.embed_dim = 16
+        self.embed_dim = 64
 
         self.original_space = obs_space
         self.agent = FlatNet(obs_space, action_space, self.embed_dim, 2)
