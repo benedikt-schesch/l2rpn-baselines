@@ -119,7 +119,7 @@ class FlatNet(nn.Module):
         self.gen_dim = action_space["redispatch"].shape[0]
 
         self.model = nn.Sequential(
-            nn.LazyLinear(self.embed_dim*2),
+            nn.LazyLinear(self.embed_dim * 2),
             nn.LeakyReLU(),
             nn.LazyLinear(self.embed_dim),
             nn.LeakyReLU(),

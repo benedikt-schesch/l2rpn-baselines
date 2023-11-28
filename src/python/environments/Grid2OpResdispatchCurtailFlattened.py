@@ -56,8 +56,12 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
                 edge_count_difference = expected_count - current_edge_features.size(0)
                 if edge_count_difference > 0:
                     # Append default features to match the expected count
-                    padding = default_features.unsqueeze(0).repeat(edge_count_difference, 1)
-                    current_edge_features = torch.cat([current_edge_features, padding], dim=0)
+                    padding = default_features.unsqueeze(0).repeat(
+                        edge_count_difference, 1
+                    )
+                    current_edge_features = torch.cat(
+                        [current_edge_features, padding], dim=0
+                    )
                 edge_features.append(current_edge_features.flatten())
             else:
                 # Use default features for the entire edge type if it's completely missing
@@ -67,11 +71,11 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
             torch.cat(edge_features) if edge_features else torch.tensor([])
         )
 
-
         # Combine node and edge features
         return torch.cat([flattened_node_features, flattened_edge_features]).unsqueeze(
             0
         )
+
     def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
         return self.base_env.denormalize_action(action)
 
@@ -99,7 +103,8 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
 
     def get_grid2op_obs(self):
         return self.base_env.get_grid2op_obs()
-    
+
+
 node_data_fields = OrderedDict(
     {
         "substation": [

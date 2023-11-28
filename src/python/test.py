@@ -61,7 +61,9 @@ class FullDownAgent:
         return -np.ones(6)
 
 
-def test_env(env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1) -> pd.DataFrame:
+def test_env(
+    env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1
+) -> pd.DataFrame:
     rewards = []
     episode_length = []
     with Progress(
@@ -69,7 +71,8 @@ def test_env(env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1) -> 
     ) as progress:
         task_episode = progress.add_task("[red]Episode...", total=n_episodes)
         task_step = progress.add_task(
-            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
+            "[green]Step...",
+            total=env.get_grid2op_env().chronics_handler.max_timestep(),
         )
         for episode_idx in range(n_episodes):
             obs, info = env.reset(seed=episode_idx, set_id=episode_idx)
@@ -137,7 +140,8 @@ def plot_env(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
         task_step = progress.add_task(
-            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
+            "[green]Step...",
+            total=env.get_grid2op_env().chronics_handler.max_timestep(),
         )
 
         while not done:
@@ -179,7 +183,8 @@ def plot_power_generators(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
         task_step = progress.add_task(
-            "[green]Step...", total=env.get_grid2op_env().chronics_handler.max_timestep()
+            "[green]Step...",
+            total=env.get_grid2op_env().chronics_handler.max_timestep(),
         )
 
         while True:

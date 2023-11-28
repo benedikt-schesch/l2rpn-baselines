@@ -17,7 +17,6 @@ from grid2op.Observation import BaseObservation
 from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
 from grid2op.Action import DontAct
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
-from grid2op.Chronics import MultifolderWithCache
 
 
 class Grid2OpEnvRedispatchCurtail(Env):
