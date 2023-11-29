@@ -1,5 +1,12 @@
+# -*- coding: utf-8 -*-
+""" Evaluate the agent on the validation set. """
 import argparse
 from typing import List
+import io
+import os
+from pathlib import Path
+import numpy as np
+
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
 from PPO import PPO
 import pandas as pd
@@ -13,10 +20,6 @@ from rich.progress import (
 from grid2op.PlotGrid import PlotMatplot
 import matplotlib.pyplot as plt
 import imageio
-import os
-from pathlib import Path
-import io
-import numpy as np
 
 
 def get_model(env, checkpoint_path: Path):
@@ -59,6 +62,7 @@ class FullDownAgent:
 
 
 def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFrame:
+    """Test the environment."""
     rewards = []
     episode_length = []
     with Progress(
@@ -70,13 +74,13 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
             total=env.get_grid2op_env().chronics_handler.max_timestep(),
         )
         for episode_idx in range(n_episodes):
-            obs, info = env.reset(seed=episode_idx, set_id=episode_idx)
+            obs, _ = env.reset(seed=episode_idx, set_id=episode_idx)
             done, time_step = False, 0
             rewards.append(0)
             while not done:
                 progress.advance(task_step, 1)
                 action = model.select_action_eval(obs)
-                obs, reward, done, terminated, info = env.step(action)
+                obs, reward, done, _, _ = env.step(action)
                 rewards[-1] += reward
                 time_step += 1
             episode_length.append(time_step)
@@ -86,7 +90,8 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
             print(f"Episode {episode_idx + 1}/{n_episodes}")
             print(f"Episode reward: {rewards[-1]}")
             print(
-                f"Episode length: {episode_length[-1]} / {env.get_grid2op_env().chronics_handler.max_timestep()}"
+                f"Episode length: {episode_length[-1]} / "
+                "{env.get_grid2op_env().chronics_handler.max_timestep()}"
             )
     print(f"Average reward: {sum(rewards) / n_episodes}")
     print(f"Average episode length: {sum(episode_length) / n_episodes}")
@@ -95,6 +100,7 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
 
 
 def convert_figure_to_numpy_HWC(figure):
+    """Convert a Matplotlib figure to a numpy array with format HWC."""
     w, h = figure.get_size_inches() * figure.dpi
     w = int(w)
     h = int(h)
@@ -110,6 +116,7 @@ def convert_figure_to_numpy_HWC(figure):
 def create_plot(
     obs, env: Grid2OpEnvRedispatchCurtail, gen_info: str = "actual_dispatch"
 ):
+    """Create a plot of the environment."""
     plot_helper = PlotMatplot(env.get_grid2op_env().observation_space)
     # fig = plot_helper.plot_obs(obs, gen_info="actual_dispatch")
     fig = plot_helper.plot_obs(obs, gen_info=gen_info)
@@ -124,8 +131,9 @@ def plot_env(
     dir: Path,
     chronic_id: int = 1,
 ):
+    """Plot the environment for a given chronic."""
     dir.mkdir(parents=True, exist_ok=True)
-    obs, info = env.reset(seed=chronic_id, set_id=chronic_id)
+    obs, _ = env.reset(seed=chronic_id, set_id=chronic_id)
     done, time_step = False, 0
 
     categories = ["actual_dispatch", "target_dispatch", "p"]
@@ -141,7 +149,7 @@ def plot_env(
 
         while not done:
             action = model.select_action_eval(obs)
-            obs, reward, done, terminated, info = env.step(action)
+            obs, _, done, _, _ = env.step(action)
             progress.advance(task_step, 1)
 
             # Get the current frame as a numpy array
@@ -163,11 +171,12 @@ def plot_env(
                     writer.append_data(image)  # type: ignore
 
 
-def plot_power_generators(
-    model, env: Grid2OpEnvRedispatchCurtail, dir: Path, chronic_id: int = 1
+def plot_power_generators(  # pylint: disable=too-many-locals
+    model, env: Grid2OpEnvRedispatchCurtail, directory: Path, chronic_id: int = 1
 ) -> List[float]:
-    dir.mkdir(parents=True, exist_ok=True)
-    obs, info = env.reset(seed=chronic_id, set_id=chronic_id)
+    """Plot the power generators for a given chronic."""
+    directory.mkdir(parents=True, exist_ok=True)
+    obs, _ = env.reset(seed=chronic_id, set_id=chronic_id)
     done, time_step = False, 0
 
     # Initialize lists to store values for each generator
@@ -184,7 +193,7 @@ def plot_power_generators(
 
         while True:
             action = model.select_action_eval(obs)
-            obs, reward, done, terminated, info = env.step(action)
+            obs, reward, done, _, _ = env.step(action)
             rewards.append(reward)
             progress.advance(task_step, 1)
 
@@ -213,7 +222,7 @@ def plot_power_generators(
         axes[i].legend()
         axes[i].grid(True)
 
-    plt.savefig(dir / "power_generators_plot.pdf")
+    plt.savefig(directory / "power_generators_plot.pdf")
     plt.close(fig)
 
     # Plotting
@@ -224,7 +233,7 @@ def plot_power_generators(
         axes[i].legend()
         axes[i].grid(True)
 
-    plt.savefig(dir / "redispatching_plot.pdf")
+    plt.savefig(directory / "redispatching_plot.pdf")
     plt.close(fig)
 
     return rewards

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from typing import Any, Union
 from torch_geometric.data import HeteroData
 import grid2op
