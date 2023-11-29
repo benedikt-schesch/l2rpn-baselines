@@ -6,6 +6,14 @@ import imageio
 import wandb
 from tqdm import tqdm
 from PPO import PPO
+from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+)
 
 
 def train():
@@ -23,23 +31,20 @@ def train():
 
     has_continuous_action_space = True  # continuous action space; else discrete
 
-    max_ep_len = 100  # max timesteps in one episode
-    max_training_timesteps = (
-        500000  # break training loop if timeteps > max_training_timesteps
+    max_ep_len = 50000  # max timesteps in one episode
+    max_training_episodes = (
+        100000  # break training loop if timeteps > max_training_episodes
     )
 
-    print_freq = max_ep_len * 10  # print avg reward in the interval (in num timesteps)
-    log_freq = max_ep_len * 2  # log avg reward in the interval (in num timesteps)
-    save_model_freq = (
-        max_training_timesteps // 5
-    )  # save model frequency (in num timesteps)
+    print_freq = 1  # print avg reward in the interval (in num timesteps)
+    save_model_freq = 1000  # save model frequency (in num timesteps)
 
     #####################################################
 
     ## Note : print/log frequencies should be > than max_ep_len
 
     ################ PPO hyperparameters ################
-    update_timestep = max_ep_len * 4  # update policy every n timesteps
+    update_timestep = 1000  # update policy every n timesteps
     K_epochs = 80  # update policy for K epochs in one PPO update
 
     eps_clip = 0.2  # clip parameter for PPO
@@ -58,9 +63,8 @@ def train():
         "env_name": env_name,
         "has_continuous_action_space": has_continuous_action_space,
         "max_ep_len": max_ep_len,
-        "max_training_timesteps": max_training_timesteps,
+        "max_training_episodes": max_training_episodes,
         "print_freq": print_freq,
-        "log_freq": log_freq,
         "save_model_freq": save_model_freq,
         "update_timestep": update_timestep,
         "K_epochs": K_epochs,
@@ -72,39 +76,15 @@ def train():
     }
 
     print("training environment name : " + env_name)
-    from environment import TestEnv
 
-    env = TestEnv()
-
-    ###################### logging ######################
-
-    #### log files for multiple runs are NOT overwritten
-    log_dir = "PPO_logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_dir = log_dir + "/" + env_name + "/"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    #### get number of log files in log directory
-    run_num = 0
-    current_num_files = next(os.walk(log_dir))[2]
-    run_num = len(current_num_files)
-
-    #### create new log file for each run
-    log_f_name = log_dir + "/PPO_" + env_name + "_log_" + str(run_num) + ".csv"
-
-    print("current logging run number for " + env_name + " : ", run_num)
-    print("logging at : " + log_f_name)
-    #####################################################
+    env = Grid2OpEnvRedispatchCurtail(env_name="l2rpn_case14_sandbox_train")
 
     ################### checkpointing ###################
     directory = "logs/PPO"
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    directory = directory + "/" + env_name + "/"
+    directory = directory + "/" + env_name
     checkpoint_dir = directory + "/" + current_time
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
@@ -116,10 +96,9 @@ def train():
     print(
         "--------------------------------------------------------------------------------------------"
     )
-    print("max training timesteps : ", max_training_timesteps)
+    print("max training timesteps : ", max_training_episodes)
     print("max timesteps per episode : ", max_ep_len)
     print("model saving frequency : " + str(save_model_freq) + " timesteps")
-    print("log frequency : " + str(log_freq) + " timesteps")
     print(
         "printing average reward over episodes in last : "
         + str(print_freq)
@@ -179,60 +158,58 @@ def train():
         "============================================================================================"
     )
 
-    # logging file
-    log_f = open(log_f_name, "w+")
-    log_f.write("episode,timestep,reward\n")
-
     # printing and logging variables
     print_running_reward = 0
     print_running_episodes = 0
 
-    log_running_reward = 0
-    log_running_episodes = 0
-
     time_step = 0
     i_episode = 0
-    # training loop
-    while time_step <= max_training_timesteps:
-        state, _ = env.reset()
-        current_ep_reward = 0
+    with Progress(
+        BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
+    ) as progress:
+        task_episodes = progress.add_task(
+            description="[magenta]Episodes...", total=max_training_episodes
+        )
+        task_steps = progress.add_task(
+            description="[cyan]Training...",
+            total=env.grid2op_env.chronics_handler.max_timestep(),
+        )
+        # training loop
+        while not progress.finished:
+            state, _ = env.reset()
+            current_ep_reward = 0
+            done = False
 
-        for t in range(1, max_ep_len + 1):
-            # select action with policy
-            action = ppo_agent.select_action(state)
-            state, reward, done, _, _ = env.step(action)
+            while not done:
+                # select action with policy
+                action = ppo_agent.select_action(state)
+                state, reward, done, terminated, info = env.step(action)
 
-            # saving reward and is_terminals
-            ppo_agent.buffer.rewards.append(reward)
-            ppo_agent.buffer.is_terminals.append(done)
+                # saving reward and is_terminals
+                ppo_agent.buffer.rewards.append(reward)
+                ppo_agent.buffer.is_terminals.append(done)
 
-            time_step += 1
-            current_ep_reward += reward
+                time_step += 1
+                progress.update(task_steps, advance=1)
+                current_ep_reward += reward
 
-            # update PPO agent
-            if time_step % update_timestep == 0:
-                ppo_agent.update()
-                ppo_agent.entropy_loss_weight = max(
-                    entropy_min_loss,
-                    entropy_max_loss
-                    - (entropy_max_loss - entropy_min_loss)
-                    * time_step
-                    / max_training_timesteps,
-                )
+                # update PPO agent
+                if time_step % update_timestep == 0:
+                    ppo_agent.update()
+                    ppo_agent.entropy_loss_weight = max(
+                        entropy_min_loss,
+                        entropy_max_loss
+                        - (entropy_max_loss - entropy_min_loss)
+                        * time_step
+                        / max_training_episodes,
+                    )
 
-            if time_step % log_freq == 0:
-                # log average reward till last episode
-                log_avg_reward = log_running_reward / log_running_episodes
-                log_avg_reward = round(float(log_avg_reward), 4)
+                # break; if the episode is over
+                if terminated:
+                    break
+            progress.update(task_episodes, advance=1)
 
-                log_f.write("{},{},{}\n".format(i_episode, time_step, log_avg_reward))
-                log_f.flush()
-
-                log_running_reward = 0
-                log_running_episodes = 0
-
-            # printing average reward
-            if time_step % print_freq == 0:
+            if i_episode % print_freq == 0 and print_running_episodes != 0:
                 # print average reward till last episode
                 print_avg_reward = print_running_reward / print_running_episodes
                 print_avg_reward = round(float(print_avg_reward), 2)
@@ -250,7 +227,7 @@ def train():
                 print_running_episodes = 0
 
             # save model weights
-            if time_step % save_model_freq == 0:
+            if i_episode % save_model_freq == 0:
                 print(
                     "--------------------------------------------------------------------------------------------"
                 )
@@ -271,20 +248,11 @@ def train():
                 print(
                     "--------------------------------------------------------------------------------------------"
                 )
+            i_episode += 1
+            wandb.log({"reward": current_ep_reward, "timestep": time_step})
+            print_running_reward += current_ep_reward
+            print_running_episodes += 1
 
-            # break; if the episode is over
-            if done:
-                break
-        wandb.log({"reward": current_ep_reward, "timestep": time_step})
-        print_running_reward += current_ep_reward
-        print_running_episodes += 1
-
-        log_running_reward += current_ep_reward
-        log_running_episodes += 1
-
-        i_episode += 1
-
-    log_f.close()
     env.close()
 
     # print total training time
@@ -315,7 +283,6 @@ def draw_agent(env, ppo_agent: PPO, checkpoint_path):
     for i in tqdm(range(100)):
         action = ppo_agent.select_action_eval(obs)
         obs, reward, done, terminated, _ = env.step(action)
-        # print(obs[:, 0])
         rewards.append(reward)
         frames.append(env.render(mode="rgb_array"))
         done = done or terminated
