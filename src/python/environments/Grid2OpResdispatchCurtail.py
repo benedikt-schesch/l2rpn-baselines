@@ -40,6 +40,11 @@ class Grid2OpEnvRedispatchCurtail(Env):
             opponent_class=BaseOpponent,
             opponent_budget_class=NeverAttackBudget,
         )
+        import re
+
+        self.grid2op_env.chronics_handler.set_filter(
+            lambda path: re.match(".*", path) is not None
+        )
         self.grid2op_env.chronics_handler.reset()
         self.n_gen = self.grid2op_env.n_gen
 
@@ -83,8 +88,9 @@ class Grid2OpEnvRedispatchCurtail(Env):
     ) -> tuple[Any, dict[str, Any]]:
         if seed is not None:
             np.random.seed(seed)
-            self.grid2op_env.seed(seed)
+            # self.grid2op_env.seed(seed)
         if set_id is not None:
+            print(f"Using set_id {set_id}")
             self.grid2op_env.set_id(set_id)
         obs = self.grid2op_env.reset()
         self.grid2op_obs = obs
@@ -111,6 +117,9 @@ class Grid2OpEnvRedispatchCurtail(Env):
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)
+
+    def get_grid2op_env(self) -> Environment:
+        return self.grid2op_env
 
 
 class ObservationSpace(spaces.Dict):
@@ -140,7 +149,7 @@ class ObservationSpace(spaces.Dict):
                 max_len=num_node_type_source * num_node_type_target,
             )
             if edge_type[1].startswith("rev_"):
-                dic["edge_features"][edge_type] = edge_observation_space[
+                dic["edge_features"][edge_type] = edge_observation_space[  # type: ignore
                     (edge_type[2], edge_type[1][4:], edge_type[0])
                 ](  # type: ignore
                     len(graph[edge_type[0]].x)
@@ -216,13 +225,6 @@ class ObservationSpace(spaces.Dict):
                 graph[key].edge_attr = torch.stack(edge_features[key[1]])
         if reverse_edges:
             graph = self.to_undirected(graph)
-
-        # for node_type in graph.node_types:
-        #     graph[
-        #         (node_type, f"self loops {node_type}", node_type)
-        #     ].edge_index = torch.empty(
-        #         (2, 0), dtype=torch.int64, device=graph[node_type].x.device
-        #     )
 
         if self_edges:
             graph = self.add_self_loops(graph)

@@ -84,7 +84,7 @@ def train():
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    directory = directory + "/" + env_name + "/"
+    directory = directory + "/" + env_name
     checkpoint_dir = directory + "/" + current_time
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
@@ -207,7 +207,6 @@ def train():
                 # break; if the episode is over
                 if terminated:
                     break
-            i_episode += 1
             progress.update(task_episodes, advance=1)
 
             if i_episode % print_freq == 0 and print_running_episodes != 0:
@@ -249,6 +248,7 @@ def train():
                 print(
                     "--------------------------------------------------------------------------------------------"
                 )
+            i_episode += 1
             wandb.log({"reward": current_ep_reward, "timestep": time_step})
             print_running_reward += current_ep_reward
             print_running_episodes += 1
