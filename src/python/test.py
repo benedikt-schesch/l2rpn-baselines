@@ -251,7 +251,7 @@ if __name__ == "__main__":
     env.get_grid2op_env().seed(1)
     model = get_model(env, checkpoint_path)
 
-    for i in range(total_episodes):
+    for i in range(10):
         directory = args.checkpoint_dir / f"chronic{i}"
         print(f"Plotting power generators for chronic {i}")
         rewards = plot_power_generators(model, env, directory, chronic_id=i)
