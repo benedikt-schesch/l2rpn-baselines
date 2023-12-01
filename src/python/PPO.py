@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
-from agent import ActorCritic
+from agents.GraphNetAgent import ActorCritic
 import wandb
 from torch_geometric.data import Batch
 
