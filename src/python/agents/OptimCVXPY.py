@@ -13,6 +13,7 @@ import warnings
 import cvxpy as cp
 import numpy as np
 from tqdm import tqdm
+import time  # noqa: F401
 
 import grid2op
 from grid2op.Runner import Runner
@@ -859,8 +860,10 @@ class OptimCVXPY(BaseAgent):
         )
 
         # solve
+        # start_time = time.time()
         prob = cp.Problem(cp.Minimize(cost), constraints)
         has_converged = self._solve_problem(prob)
+        # print("Solver time:",time.time()-start_time)
 
         if has_converged:
             self.flow_computed[:] = f_or.value
@@ -1180,8 +1183,10 @@ class OptimCVXPY(BaseAgent):
         )
 
         # solve the problem
+        # start_time = time.time()
         prob = cp.Problem(cp.Minimize(cost), constraints)
         has_converged = self._solve_problem(prob)
+        # print("Solver time (Safe):",time.time()-start_time)
 
         if has_converged:
             self.flow_computed[:] = f_or.value
@@ -1230,6 +1235,7 @@ class OptimCVXPY(BaseAgent):
             The action the agent would do
 
         """
+        # start_time = time.time()
         prev_ok = np.isfinite(self.flow_computed)
         # only keep the negative error (meaning I underestimated the flow)
         self._prev_por_error.value[prev_ok] = np.minimum(
@@ -1278,6 +1284,7 @@ class OptimCVXPY(BaseAgent):
             act = self.action_space()
 
             self.flow_computed[:] = obs.p_or
+        # print("Total time:",time.time() - state_time)
         return act
 
 

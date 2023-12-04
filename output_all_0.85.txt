@@ -1,0 +1,75 @@
+Running scenario 2050-01-03_31 with agent DoNothingAgent
+scenario: 2050-01-03_31 DoNothingAgent: 687 / 2017
+Running scenario 2050-01-03_31 with agent OptimCVXPY
+scenario: 2050-01-03_31 OptimCVXPY: 1398 / 2017
+Running scenario 2050-02-21_31 with agent DoNothingAgent
+scenario: 2050-02-21_31 DoNothingAgent: 4 / 2017
+Running scenario 2050-02-21_31 with agent OptimCVXPY
+scenario: 2050-02-21_31 OptimCVXPY: 399 / 2017
+Running scenario 2050-03-07_31 with agent DoNothingAgent
+scenario: 2050-03-07_31 DoNothingAgent: 117 / 2017
+Running scenario 2050-03-07_31 with agent OptimCVXPY
+scenario: 2050-03-07_31 OptimCVXPY: 2017 / 2017
+Running scenario 2050-04-18_31 with agent DoNothingAgent
+scenario: 2050-04-18_31 DoNothingAgent: 131 / 2017
+Running scenario 2050-04-18_31 with agent OptimCVXPY
+scenario: 2050-04-18_31 OptimCVXPY: 2017 / 2017
+Running scenario 2050-05-09_31 with agent DoNothingAgent
+scenario: 2050-05-09_31 DoNothingAgent: 743 / 2017
+Running scenario 2050-05-09_31 with agent OptimCVXPY
+scenario: 2050-05-09_31 OptimCVXPY: 2017 / 2017
+Running scenario 2050-06-27_31 with agent DoNothingAgent
+scenario: 2050-06-27_31 DoNothingAgent: 101 / 2017
+Running scenario 2050-06-27_31 with agent OptimCVXPY
+scenario: 2050-06-27_31 OptimCVXPY: 1676 / 2017
+Running scenario 2050-07-25_31 with agent DoNothingAgent
+scenario: 2050-07-25_31 DoNothingAgent: 523 / 2017
+Running scenario 2050-07-25_31 with agent OptimCVXPY
+scenario: 2050-07-25_31 OptimCVXPY: 2017 / 2017
+Running scenario 2050-08-01_31 with agent DoNothingAgent
+scenario: 2050-08-01_31 DoNothingAgent: 124 / 2017
+Running scenario 2050-08-01_31 with agent OptimCVXPY
+scenario: 2050-08-01_31 OptimCVXPY: 449 / 2017
+Running scenario 2050-09-26_31 with agent DoNothingAgent
+scenario: 2050-09-26_31 DoNothingAgent: 1275 / 2017
+Running scenario 2050-09-26_31 with agent OptimCVXPY
+scenario: 2050-09-26_31 OptimCVXPY: 1507 / 2017
+Running scenario 2050-10-03_31 with agent DoNothingAgent
+scenario: 2050-10-03_31 DoNothingAgent: 240 / 2017
+Running scenario 2050-10-03_31 with agent OptimCVXPY
+scenario: 2050-10-03_31 OptimCVXPY: 2017 / 2017
+Running scenario 2050-11-14_31 with agent DoNothingAgent
+scenario: 2050-11-14_31 DoNothingAgent: 154 / 2017
+Running scenario 2050-11-14_31 with agent OptimCVXPY
+scenario: 2050-11-14_31 OptimCVXPY: 360 / 2017
+Running scenario 2050-12-19_31 with agent DoNothingAgent
+scenario: 2050-12-19_31 DoNothingAgent: 141 / 2017
+Running scenario 2050-12-19_31 with agent OptimCVXPY
+scenario: 2050-12-19_31 OptimCVXPY: 211 / 2017
+               DoNothingAgent Reward  OptimCVXPY Reward  \
+2050-01-03_31          146400.397415      268917.033966
+2050-02-21_31             618.249588       77617.370743
+2050-03-07_31           26100.091202      375143.436859
+2050-04-18_31           31772.028976      450058.408539
+2050-05-09_31          183479.272461      469994.824265
+2050-06-27_31           36056.124756      494295.026596
+2050-07-25_31          180839.537445      654198.826096
+2050-08-01_31           47335.491913      154144.093079
+2050-09-26_31          404424.472565      447053.482452
+2050-10-03_31           75822.406799      600582.420334
+2050-11-14_31           41898.658707       93384.088242
+2050-12-19_31           33178.334473       46207.855392
+
+               DoNothingAgent Timesteps  OptimCVXPY Timesteps
+2050-01-03_31                       687                  1398
+2050-02-21_31                         4                   399
+2050-03-07_31                       117                  2017
+2050-04-18_31                       131                  2017
+2050-05-09_31                       743                  2017
+2050-06-27_31                       101                  1676
+2050-07-25_31                       523                  2017
+2050-08-01_31                       124                   449
+2050-09-26_31                      1275                  1507
+2050-10-03_31                       240                  2017
+2050-11-14_31                       154                   360
+2050-12-19_31                       141                   211
