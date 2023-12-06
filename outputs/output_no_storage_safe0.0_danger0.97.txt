@@ -1,0 +1,16 @@
+For do nothing:
+	 scenario: 2019-01-12: 288 / 288
+	 scenario: 2019-01-13: 288 / 288
+	 scenario: 2019-01-14: 220 / 288
+	 scenario: 2019-01-15: 90 / 288
+	 scenario: 2019-01-16: 236 / 288
+	 scenario: 2019-01-17: 234 / 288
+	 scenario: 2019-01-18: 86 / 288
+For the optimizer:
+	 scenario: 2019-01-12: 288 / 288
+	 scenario: 2019-01-13: 288 / 288
+	 scenario: 2019-01-14: 223 / 288
+	 scenario: 2019-01-15: 92 / 288
+	 scenario: 2019-01-16: 288 / 288
+	 scenario: 2019-01-17: 235 / 288
+	 scenario: 2019-01-18: 89 / 288

@@ -10,14 +10,46 @@
 import os
 import grid2op
 from grid2op.Action import PlayableAction
+from OptimCVXPY_no_storage import OptimCVXPY as OptimCVXPY_no_storage
+from OptimCVXPY_no_redispatch import OptimCVXPY as OptimCVXPY_no_redispatch
+from OptimCVXPY_no_curtailment import OptimCVXPY as OptimCVXPY_no_curtailment
 from OptimCVXPY import OptimCVXPY
 from lightsim2grid import LightSimBackend
 from tqdm import tqdm
+import argparse
 
 max_step = 288
 
 
+def get_model(model_name):
+    if model_name == "full":
+        return OptimCVXPY
+    elif model_name == "no_storage":
+        return OptimCVXPY_no_storage
+    elif model_name == "no_redispatch":
+        return OptimCVXPY_no_redispatch
+    elif model_name == "no_curtailment":
+        return OptimCVXPY_no_curtailment
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+
+
 if __name__ == "__main__":
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument(
+        "--rho_safe", type=float, default=0.0, help="rho_safe parameter"
+    )
+    argparser.add_argument(
+        "--rho_danger", type=float, default=0.0, help="rho_danger parameter"
+    )
+    argparser.add_argument(
+        "--model",
+        type=str,
+        default="full",
+        help="model to test: full, no_storage, no_redispatch, no_curtailment",
+    )
+    args = argparser.parse_args()
+
     env = grid2op.make(
         "educ_case14_storage",
         test=True,
@@ -25,14 +57,15 @@ if __name__ == "__main__":
         action_class=PlayableAction,
     )
 
-    agent = OptimCVXPY(
+    model_class = get_model(args.model)
+    agent = model_class(
         env.action_space,
         env,
         penalty_redispatching_unsafe=0.0,
         penalty_storage_unsafe=0.04,
         penalty_curtailment_unsafe=0.01,
-        rho_safe=0.95,
-        rho_danger=0.97,
+        rho_safe=args.rho_safe,
+        rho_danger=args.rho_danger,
         margin_th_limit=0.93,
         alpha_por_error=0.5,
         weight_redisp_target=0.3,
