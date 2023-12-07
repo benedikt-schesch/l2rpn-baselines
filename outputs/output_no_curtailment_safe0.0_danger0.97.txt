@@ -11,6 +11,3 @@ For the optimizer:
 	 scenario: 2019-01-13: 288 / 288
 	 scenario: 2019-01-14: 233 / 288
 	 scenario: 2019-01-15: 288 / 288
-	 scenario: 2019-01-16: 288 / 288
-	 scenario: 2019-01-17: 288 / 288
-	 scenario: 2019-01-18: 240 / 288

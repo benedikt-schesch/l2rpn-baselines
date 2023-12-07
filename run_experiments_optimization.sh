@@ -12,11 +12,8 @@ for rs in "${rho_safe_values[@]}"; do
         if (( $(echo "$rs <= $rd" | bc -l) )); then
             # Iterate over the models
             for model in "${models[@]}"; do
-                # Define the output file name
-                output_file="outputs/output_${model}_safe${rs}_danger${rd}.txt"
-
                 # Call the script and pipe the output
-                python src/python/agents/test_educ14_storage.py --rho_safe $rs --rho_danger $rd --model $model | tee "$output_file"
+                python src/python/agents/test_educ14_storage.py --rho_safe $rs --rho_danger $rd --model $model
             done
         fi
     done
