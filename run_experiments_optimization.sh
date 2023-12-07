@@ -3,7 +3,8 @@
 # Define the array of rho_safe and rho_danger values
 rho_safe_values=(0.0 0.95)
 rho_danger_values=(0.97 0.9 0.0)
-models=("no_curtailment" "full" "no_storage" "no_redispatch")
+# models=("no_curtailment" "full" "no_storage" "no_redispatch" "custom")
+models=("custom")
 
 # Iterate over the rho_safe and rho_danger values
 for rs in "${rho_safe_values[@]}"; do

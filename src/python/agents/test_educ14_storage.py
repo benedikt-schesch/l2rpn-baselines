@@ -17,6 +17,7 @@ from grid2op.Action import PlayableAction
 from OptimCVXPY_no_storage import OptimCVXPY as OptimCVXPY_no_storage
 from OptimCVXPY_no_redispatch import OptimCVXPY as OptimCVXPY_no_redispatch
 from OptimCVXPY_no_curtailment import OptimCVXPY as OptimCVXPY_no_curtailment
+from OptimCVXPY_custom import OptimCVXPY as OptimCVXPY_custom
 from OptimCVXPY import OptimCVXPY
 from lightsim2grid import LightSimBackend
 
@@ -32,6 +33,8 @@ def get_model(model_name):
         return OptimCVXPY_no_redispatch
     elif model_name == "no_curtailment":
         return OptimCVXPY_no_curtailment
+    elif model_name == "custom":
+        return OptimCVXPY_custom
     else:
         raise ValueError(f"Unknown model name: {model_name}")
 
@@ -47,8 +50,8 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--model",
         type=str,
-        default="full",
-        help="model to test: full, no_storage, no_redispatch, no_curtailment",
+        default="custom",
+        help="model to test: full, custom, no_storage, no_redispatch, no_curtailment",
     )
     argparser.add_argument(
         "--output_dir",
