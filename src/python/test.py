@@ -37,7 +37,6 @@ def get_model(
             gamma=0.99,
             K_epochs=4,
             eps_clip=0.2,
-            has_continuous_action_space=True,
         )
         if not isinstance(checkpoint_path, Path):
             raise ValueError("Checkpoint path must be specified for GraphNetAgent")

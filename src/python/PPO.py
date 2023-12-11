@@ -51,11 +51,8 @@ class PPO:
         gamma,
         K_epochs,
         eps_clip,
-        has_continuous_action_space,
         entropy_loss_weight=0.001,
     ):
-        self.has_continuous_action_space = has_continuous_action_space
-
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
@@ -87,45 +84,25 @@ class PPO:
         self.MseLoss = nn.MSELoss()
 
     def select_action_eval(self, state):
-        if self.has_continuous_action_space:
-            with torch.no_grad():
-                state = state.to(device)
-                state.num_graphs = 1
-                action = self.policy_old.act_eval(state)
+        with torch.no_grad():
+            state = state.to(device)
+            state.num_graphs = 1
+            action = self.policy_old.act_eval(state)
 
-            return action.detach().cpu().numpy().flatten()
-        else:
-            with torch.no_grad():
-                state = state.to(device)
-                state.num_graphs = 1
-                action = self.policy_old.act_eval(state)
-
-            return action.item()
+        return action.detach().cpu().numpy().flatten()
 
     def select_action(self, state):
         state.num_graphs = 1
-        if self.has_continuous_action_space:
-            with torch.no_grad():
-                state = state.to(device)
-                action, action_logprob, state_val = self.policy_old.act(state)
+        with torch.no_grad():
+            state = state.to(device)
+            action, action_logprob, state_val = self.policy_old.act(state)
 
-            self.buffer.states.append(state.clone())
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
-            self.buffer.state_values.append(state_val)
+        self.buffer.states.append(state.clone())
+        self.buffer.actions.append(action)
+        self.buffer.logprobs.append(action_logprob)
+        self.buffer.state_values.append(state_val)
 
-            return action.detach().cpu().numpy().flatten()
-        else:
-            with torch.no_grad():
-                state = torch.FloatTensor(state).to(device)
-                action, action_logprob, state_val = self.policy_old.act(state)
-
-            self.buffer.states.append(state)
-            self.buffer.actions.append(action)
-            self.buffer.logprobs.append(action_logprob)
-            self.buffer.state_values.append(state_val)
-
-            return action.item()
+        return action.detach().cpu().numpy().flatten()
 
     def update(self):
         # Monte Carlo estimate of returns

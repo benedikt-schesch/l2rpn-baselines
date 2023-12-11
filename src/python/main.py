@@ -6,13 +6,14 @@ import numpy as np
 import imageio
 import wandb
 from tqdm import tqdm
+import json
+from pathlib import Path
 from PPO import PPO
-from environments.Grid2OpResdispatchCurtail import (
-    Grid2OpEnvRedispatchCurtail,  # noqa: F401
-)
+from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
 from environments.Grid2OpResdispatchCurtailFlattened import (
     Grid2OpEnvRedispatchCurtailFlattened,
 )
+from environments.Grid2OpBilevelFlattened import Grid2OpBilevelFlattened
 from rich.progress import (
     Progress,
     BarColumn,
@@ -22,7 +23,24 @@ from rich.progress import (
 )
 
 
-def train():
+def load_config(config_path):
+    with open(config_path, "r") as file:
+        return json.load(file)
+
+
+def load_env(config):
+    env_type = config["env_type"]
+    if env_type == "Grid2OpEnvRedispatchCurtail":
+        return Grid2OpEnvRedispatchCurtail(env_name=config["env_name"])
+    elif env_type == "Grid2OpEnvRedispatchCurtailFlattened":
+        return Grid2OpEnvRedispatchCurtailFlattened(env_name=config["env_name"])
+    elif env_type == "Grid2OpEnvBilevelFlattened":
+        return Grid2OpBilevelFlattened(env_name=config["env_name"])
+    else:
+        raise ValueError(f"Unknown env type: {env_type}")
+
+
+def train(config_path=Path("configs/config.json")):
     print(
         "============================================================================================"
     )
@@ -32,58 +50,33 @@ def train():
         notes=current_time,
     )
 
-    ####### initialize environment hyperparameters ######
-    env_name = "Grid2OpEnvRedispatchCurtailFlattened"
-
-    has_continuous_action_space = True  # continuous action space; else discrete
-
-    max_ep_len = 50000  # max timesteps in one episode
-    max_training_episodes = (
-        100000  # break training loop if timeteps > max_training_episodes
-    )
-
-    print_freq = 1  # print avg reward in the interval (in num timesteps)
-    save_model_freq = 1000  # save model frequency (in num timesteps)
-
-    #####################################################
-
-    ## Note : print/log frequencies should be > than max_ep_len
-
-    ################ PPO hyperparameters ################
-    update_timestep = 1000  # update policy every n timesteps
-    K_epochs = 80  # update policy for K epochs in one PPO update
-
-    eps_clip = 0.2  # clip parameter for PPO
-    gamma = 0.95  # discount factor
-    entropy_max_loss = 0.0001
-    entropy_min_loss = 0.0000001
-
-    lr_actor = 0.00001  # learning rate for actor network
-    lr_critic = 0.00003  # learning rate for critic network
-
-    random_seed = 42  # set random seed if required (0 = no random seed)
-    #####################################################
+    config = load_config(config_path)
+    ####### initialize environment hyperparameters from config file ######
+    env_name = config["env_name"]
+    max_ep_len = config["max_ep_len"]
+    max_training_episodes = config["max_training_episodes"]
+    print_freq = config["print_freq"]
+    save_model_freq = config["save_model_freq"]
+    update_timestep = config["update_timestep"]
+    K_epochs = config["K_epochs"]
+    eps_clip = config["eps_clip"]
+    gamma = config["gamma"]
+    entropy_max_loss = config.get(
+        "entropy_max_loss", 0.0001
+    )  # Default value if not provided in config
+    entropy_min_loss = config.get(
+        "entropy_min_loss", 0.0000001
+    )  # Default value if not provided in config
+    lr_actor = config["lr_actor"]
+    lr_critic = config["lr_critic"]
+    random_seed = config.get("random_seed", None)  # Default to None if not provided
 
     ################# logging variables #################
-    wandb.config = {
-        "env_name": env_name,
-        "has_continuous_action_space": has_continuous_action_space,
-        "max_ep_len": max_ep_len,
-        "max_training_episodes": max_training_episodes,
-        "print_freq": print_freq,
-        "save_model_freq": save_model_freq,
-        "update_timestep": update_timestep,
-        "K_epochs": K_epochs,
-        "eps_clip": eps_clip,
-        "gamma": gamma,
-        "lr_actor": lr_actor,
-        "lr_critic": lr_critic,
-        "random_seed": random_seed,
-    }
+    wandb.config = config
 
     print("training environment name : " + env_name)
 
-    env = Grid2OpEnvRedispatchCurtailFlattened(env_name="l2rpn_case14_sandbox_train")
+    env = load_env(config)
 
     ################### checkpointing ###################
     directory = "logs/PPO"
@@ -110,13 +103,6 @@ def train():
         + str(print_freq)
         + " timesteps"
     )
-    print(
-        "--------------------------------------------------------------------------------------------"
-    )
-    if has_continuous_action_space:
-        print("Initializing a continuous action space policy")
-    else:
-        print("Initializing a discrete action space policy")
     print(
         "--------------------------------------------------------------------------------------------"
     )
@@ -153,7 +139,6 @@ def train():
         gamma,
         K_epochs,
         eps_clip,
-        has_continuous_action_space,
     )
 
     # track total training time

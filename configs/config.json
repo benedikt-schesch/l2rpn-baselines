@@ -1,0 +1,15 @@
+{
+  "K_epochs": 80,
+  "env_name": "educ_case14_storage",
+  "env_type": "Grid2OpBilevelFlattened",
+  "eps_clip": 0.2,
+  "gamma": 0.95,
+  "lr_actor": 1e-05,
+  "lr_critic": 3e-05,
+  "max_ep_len": 50000,
+  "max_training_episodes": 100000,
+  "print_freq": 1,
+  "random_seed": 42,
+  "save_model_freq": 1000,
+  "update_timestep": 1000
+}
