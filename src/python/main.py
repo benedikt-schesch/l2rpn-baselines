@@ -191,7 +191,7 @@ def train():
                 ppo_agent.buffer.is_terminals.append(done)
 
                 time_step += 1
-                progress.update(task_steps, advance=1)
+                progress.update(task_steps, completed=env.get_time_step())
                 current_ep_reward += reward
 
                 # update PPO agent
