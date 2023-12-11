@@ -8,6 +8,9 @@ from pathlib import Path
 import numpy as np
 
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from environments.Grid2OpResdispatchCurtailFlattened import (
+    Grid2OpEnvRedispatchCurtailFlattened,
+)
 from PPO import PPO
 import pandas as pd
 from rich.progress import (
@@ -61,8 +64,9 @@ class FullDownAgent:
         return -np.ones(6)
 
 
-def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFrame:
-    """Test the environment."""
+def test_env(
+    env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1
+) -> pd.DataFrame:
     rewards = []
     episode_length = []
     with Progress(
@@ -90,8 +94,7 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
             print(f"Episode {episode_idx + 1}/{n_episodes}")
             print(f"Episode reward: {rewards[-1]}")
             print(
-                f"Episode length: {episode_length[-1]} / "
-                "{env.get_grid2op_env().chronics_handler.max_timestep()}"
+                f"Episode length: {episode_length[-1]} / {env.get_grid2op_env().chronics_handler.max_timestep()}"
             )
     print(f"Average reward: {sum(rewards) / n_episodes}")
     print(f"Average episode length: {sum(episode_length) / n_episodes}")
@@ -244,7 +247,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint_dir",
         type=Path,
-        default="logs/PPO/Grid2OpGeneratorTargetTestEnv/2023-11-28-15-28-54/time_step_1090/",
+        default="logs/PPO/Grid2OpEnvRedispatchCurtailFlattened//2023-11-27-14-14-14/time_step_7627532/",
     )
     parser.add_argument("--n_episodes", type=int, default=10)
     args = parser.parse_args()
@@ -253,11 +256,9 @@ if __name__ == "__main__":
         / [f for f in os.listdir(args.checkpoint_dir) if f.endswith(".pth")][0]
     )
 
-    env = Grid2OpEnvRedispatchCurtail("l2rpn_case14_sandbox_val")
-    total_episodes = len(env.get_grid2op_env().chronics_handler.subpaths)
-    print(f"Total episodes: {total_episodes}")
-    env.get_grid2op_env().chronics_handler.seed(1)
-    env.get_grid2op_env().seed(1)
+    env = Grid2OpEnvRedispatchCurtailFlattened("l2rpn_case14_sandbox_val")
+    # env.grid2op_env.chronics_handler.seed(1)
+    # env.grid2op_env.seed(1)
     model = get_model(env, checkpoint_path)
 
     for i in range(10):

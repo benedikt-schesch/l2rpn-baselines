@@ -18,7 +18,6 @@ from grid2op.Observation import BaseObservation
 from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
 from grid2op.Action import DontAct
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
-from grid2op.Chronics import MultifolderWithCache
 
 
 class Grid2OpEnvRedispatchCurtail(Env):
@@ -29,7 +28,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             env_name,
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
-            chronics_class=MultifolderWithCache,
             data_feeding_kwargs={
                 "gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance
             },
@@ -41,12 +39,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             opponent_class=BaseOpponent,
             opponent_budget_class=NeverAttackBudget,
         )
-        import re
-
-        self.grid2op_env.chronics_handler.set_filter(
-            lambda path: re.match(".*", path) is not None
-        )
-        self.grid2op_env.chronics_handler.reset()
         self.n_gen = self.grid2op_env.n_gen
 
         # Observation space normalization factors

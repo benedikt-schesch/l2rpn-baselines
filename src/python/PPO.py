@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from agent import ActorCritic
 import wandb
-from torch_geometric.data import Batch
+from torch_geometric.data import Batch, HeteroData
 
 ################################## set device ##################################
 print(
@@ -144,7 +144,19 @@ class PPO:
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
         # convert list to tensor
-        old_states = Batch.from_data_list(self.buffer.states)
+        if type(self.buffer.states[0]) == HeteroData:
+            old_states = Batch.from_data_list(self.buffer.states)
+        elif type(self.buffer.states[0]) == torch.Tensor:
+            old_states = (
+                torch.squeeze(torch.stack(self.buffer.states, dim=0))
+                .detach()
+                .to(device)
+            )
+        else:
+            raise ValueError(
+                f"Unknown state type {type(self.buffer.states[0])} in buffer"
+            )
+
         old_actions = (
             torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(device)
         )
