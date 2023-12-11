@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from typing import Union, Tuple
 import torch
 from gymnasium import Env
@@ -82,6 +83,7 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
     def reset(self, **kwargs) -> Tuple[torch.Tensor, dict]:
         hetero_data, info = self.base_env.reset(**kwargs)
         obs = self.flatten_features(hetero_data)
+        self.time_step = 0
         assert obs.shape[1] == self.feature_dim
         return obs, info
 
@@ -89,6 +91,7 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
         self, action: Union[None, torch.Tensor]
     ) -> Tuple[torch.Tensor, float, bool, bool, dict]:
         hetero_data, reward, done, _, info = self.base_env.step(action)
+        self.time_step += 1
         obs = self.flatten_features(hetero_data)
         if not done:
             assert obs.shape[1] == self.feature_dim
@@ -97,6 +100,9 @@ class Grid2OpEnvRedispatchCurtailFlattened(Env):
 
     def render(self, mode="rgb_array"):
         return self.base_env.render(mode)
+
+    def get_time_step(self) -> int:
+        return self.time_step
 
     def get_grid2op_env(self) -> Environment:
         return self.base_env.get_grid2op_env()
