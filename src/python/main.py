@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 from datetime import datetime
 import torch
@@ -6,7 +7,9 @@ import imageio
 import wandb
 from tqdm import tqdm
 from PPO import PPO
-from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail  # noqa: F401
+from environments.Grid2OpResdispatchCurtail import (
+    Grid2OpEnvRedispatchCurtail,
+)  # noqa: F401
 from environments.Grid2OpResdispatchCurtailFlattened import (
     Grid2OpEnvRedispatchCurtailFlattened,
 )
@@ -55,8 +58,8 @@ def train():
     entropy_max_loss = 0.0001
     entropy_min_loss = 0.0000001
 
-    lr_actor = 0.00003  # learning rate for actor network
-    lr_critic = 0.0001  # learning rate for critic network
+    lr_actor = 0.00001  # learning rate for actor network
+    lr_critic = 0.00003  # learning rate for critic network
 
     random_seed = 42  # set random seed if required (0 = no random seed)
     #####################################################
@@ -87,7 +90,7 @@ def train():
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    directory = directory + "/" + env_name + "/"
+    directory = directory + "/" + env_name
     checkpoint_dir = directory + "/" + current_time
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
@@ -193,7 +196,7 @@ def train():
                 ppo_agent.buffer.is_terminals.append(done)
 
                 time_step += 1
-                progress.update(task_steps, advance=1)
+                progress.update(task_steps, completed=env.get_time_step())
                 current_ep_reward += reward
 
                 # update PPO agent
@@ -210,7 +213,6 @@ def train():
                 # break; if the episode is over
                 if terminated:
                     break
-            i_episode += 1
             progress.update(task_episodes, advance=1)
 
             if i_episode % print_freq == 0 and print_running_episodes != 0:
@@ -252,6 +254,7 @@ def train():
                 print(
                     "--------------------------------------------------------------------------------------------"
                 )
+            i_episode += 1
             wandb.log({"reward": current_ep_reward, "timestep": time_step})
             print_running_reward += current_ep_reward
             print_running_episodes += 1

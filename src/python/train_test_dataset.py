@@ -1,10 +1,16 @@
+# -*- coding: utf-8 -*-
+"""
+Split the dataset into train, validation and test sets.
+"""
+
+
 import grid2op
 from grid2op.Reward import LinesCapacityReward
 from grid2op.Chronics import MultifolderWithCache
-from lightsim2grid import LightSimBackend
 from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
 from grid2op.Action import DontAct
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
+from lightsim2grid import LightSimBackend
 
 env_name = "l2rpn_case14_sandbox"
 env = grid2op.make(
