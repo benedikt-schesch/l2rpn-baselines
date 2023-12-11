@@ -8,8 +8,8 @@ import wandb
 from tqdm import tqdm
 from PPO import PPO
 from environments.Grid2OpResdispatchCurtail import (
-    Grid2OpEnvRedispatchCurtail,
-)  # noqa: F401
+    Grid2OpEnvRedispatchCurtail,  # noqa: F401
+)
 from environments.Grid2OpResdispatchCurtailFlattened import (
     Grid2OpEnvRedispatchCurtailFlattened,
 )
