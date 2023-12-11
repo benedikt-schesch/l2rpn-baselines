@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Union
+from typing import Any, Union, Tuple
 from torch_geometric.data import HeteroData
 import grid2op
 from grid2op.Reward import LinesCapacityReward
@@ -18,7 +18,6 @@ from grid2op.Observation import BaseObservation
 from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
 from grid2op.Action import DontAct
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
-from grid2op.Chronics import MultifolderWithCache
 
 
 class Grid2OpEnvRedispatchCurtail(Env):
@@ -29,7 +28,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             env_name,
             reward_class=LinesCapacityReward,
             backend=LightSimBackend(),
-            chronics_class=MultifolderWithCache,
             data_feeding_kwargs={
                 "gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance
             },
@@ -41,12 +39,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             opponent_class=BaseOpponent,
             opponent_budget_class=NeverAttackBudget,
         )
-        import re
-
-        self.grid2op_env.chronics_handler.set_filter(
-            lambda path: re.match(".*", path) is not None
-        )
-        self.grid2op_env.chronics_handler.reset()
         self.n_gen = self.grid2op_env.n_gen
 
         # Observation space normalization factors
@@ -93,25 +85,42 @@ class Grid2OpEnvRedispatchCurtail(Env):
         if set_id is not None:
             print(f"Using set_id {set_id}")
             self.grid2op_env.set_id(set_id)
-        obs = self.grid2op_env.reset()
-        self.grid2op_obs = obs
-        elements_graph_pyg = self.observation_space.grid2op_to_pyg(
-            obs.get_elements_graph()
+        self.grid2op_obs = self.grid2op_env.reset()
+        done = False
+        self.time_step = 0
+        if self.grid2op_obs.rho.max() < 0.85:
+            reward, done, info = self.play_until_next_contigency(0, False, {})
+        if done:
+            return self.reset()
+        return self.observe(), {}
+
+    def observe(self) -> HeteroData:
+        return self.observation_space.grid2op_to_pyg(
+            self.grid2op_obs.get_elements_graph()
         )
-        return elements_graph_pyg, {}
+
+    def play_until_next_contigency(
+        self, reward, done, info
+    ) -> Tuple[float, bool, dict]:
+        while self.grid2op_obs.rho.max() < 0.85 and not done:
+            self.time_step += 1
+            self.grid2op_obs, reward, done, info = self.grid2op_env.step(
+                self.grid2op_env.action_space()
+            )
+        return reward, done, info
 
     def step(self, action: Union[None, torch.Tensor]):
         grid2op_action = self.grid2op_env.action_space()
         if action is not None:
             action = self.denormalize_action(action)
             grid2op_action.redispatch = action
+        self.grid2op_obs, reward, done, info = self.grid2op_env.step(grid2op_action)
+        self.time_step += 1
+        reward, done, info = self.play_until_next_contigency(reward, done, info)
+        return self.observe(), reward, done, False, info
 
-        obs, reward, done, info = self.grid2op_env.step(grid2op_action)
-        self.grid2op_obs = obs
-        elements_graph_pyg = self.observation_space.grid2op_to_pyg(
-            obs.get_elements_graph()
-        )
-        return elements_graph_pyg, reward, done, False, info
+    def get_time_step(self) -> int:
+        return self.time_step
 
     def get_grid2op_obs(self) -> BaseObservation:
         return self.grid2op_obs

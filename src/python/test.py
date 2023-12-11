@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 
 from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from environments.Grid2OpResdispatchCurtailFlattened import (
+    Grid2OpEnvRedispatchCurtailFlattened,
+)
 from PPO import PPO
 import pandas as pd
 from rich.progress import (
@@ -108,8 +111,9 @@ def play_episode_default(
     return total_reward, time_step
 
 
-def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFrame:
-    """Test the environment."""
+def test_env(
+    env: Grid2OpEnvRedispatchCurtailFlattened, model, n_episodes=1
+) -> pd.DataFrame:
     rewards = []
     episode_length = []
     with Progress(
@@ -134,7 +138,13 @@ def test_env(env: Grid2OpEnvRedispatchCurtail, model, n_episodes=1) -> pd.DataFr
             rewards.append(reward)
             episode_length.append(length)
             progress.advance(task_episode, 1)
-            print(f"Episode {episode_idx} reward: {reward} length: {length}")
+            progress.advance(task_step, -env.get_time_step())
+
+            print(f"Episode {episode_idx + 1}/{n_episodes}")
+            print(f"Episode reward: {rewards[-1]}")
+            print(
+                f"Episode length: {episode_length[-1]} / {env.get_grid2op_env().chronics_handler.max_timestep()}"
+            )
     print(f"Average reward: {sum(rewards) / n_episodes}")
     print(f"Average episode length: {sum(episode_length) / n_episodes}")
     df = pd.DataFrame({"rewards": rewards, "episode_length": episode_length})
@@ -293,7 +303,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint_dir",
         type=Path,
-        default="logs/PPO/Grid2OpGeneratorTargetTestEnv/2023-11-28-15-28-54/time_step_1090/",
+        default="logs/PPO/Grid2OpEnvRedispatchCurtailFlattened//2023-11-27-14-14-14/time_step_7627532/",
     )
     parser.add_argument("--n_episodes", type=int, default=10)
     args = parser.parse_args()
@@ -302,44 +312,38 @@ if __name__ == "__main__":
         / [f for f in os.listdir(args.checkpoint_dir) if f.endswith(".pth")][0]
     )
 
-    env = make_env()
-    print(
-        f"Total episodes in the evaluation set: {len(env.get_grid2op_env().chronics_handler.subpaths)}"
-    )
-    result_df_donothing = test_env(env, get_model("donothing", env), n_episodes=10)
-    env = make_env()
-    result_df_optim = test_env(env, get_model("optim", env), n_episodes=10)
-    combined_df = pd.concat([result_df_optim, result_df_donothing], axis=1)
-    print(combined_df)
-    combined_df.to_csv(args.checkpoint_dir / "results.csv")
+    # env = Grid2OpEnvRedispatchCurtailFlattened("l2rpn_case14_sandbox_val")
+    # env.grid2op_env.chronics_handler.seed(1)
+    # env.grid2op_env.seed(1)
+    # model = get_model(env, checkpoint_path)
 
     # for i in range(10):
-    # directory = args.checkpoint_dir / f"chronic{i}"
-    # print(f"Plotting power generators for chronic {i}")
-    # rewards = plot_power_generators(model, env, directory, chronic_id=i)
-    # rewards_no_action = plot_power_generators(
-    #     NoActionAgent(), env, directory / "baseline", chronic_id=i
-    # )
-    # rewards_full_up = plot_power_generators(
-    #     FullUpAgent(), env, directory / "full_up", chronic_id=i
-    # )
-    # rewards_full_down = plot_power_generators(
-    #     FullDownAgent(), env, directory / "full_down", chronic_id=i
-    # )
+    #     directory = args.checkpoint_dir / f"chronic{i}"
+    #     print(f"Plotting power generators for chronic {i}")
+    #     rewards = plot_power_generators(model, env, directory, chronic_id=i)
+    #     rewards_no_action = plot_power_generators(
+    #         NoActionAgent(), env, directory / "baseline", chronic_id=i
+    #     )
+    #     rewards_full_up = plot_power_generators(
+    #         FullUpAgent(), env, directory / "full_up", chronic_id=i
+    #     )
+    #     rewards_full_down = plot_power_generators(
+    #         FullDownAgent(), env, directory / "full_down", chronic_id=i
+    #     )
 
-    # print(f"Plotting rewards for chronic {i}")
-    # plt.figure()
-    # plt.plot(rewards, label="Agent")
-    # plt.plot(rewards_no_action, label="Baseline")
-    # plt.plot(rewards_full_up, label="Full Up")
-    # plt.plot(rewards_full_down, label="Full Down")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.savefig(directory / "rewards_plot.pdf")
-    # plt.close()
+    #     print(f"Plotting rewards for chronic {i}")
+    #     plt.figure()
+    #     plt.plot(rewards, label="Agent")
+    #     plt.plot(rewards_no_action, label="Baseline")
+    #     plt.plot(rewards_full_up, label="Full Up")
+    #     plt.plot(rewards_full_down, label="Full Down")
+    #     plt.legend()
+    #     plt.grid(True)
+    #     plt.savefig(directory / "rewards_plot.pdf")
+    #     plt.close()
 
-    # print(f"Plotting environment for chronic {i}")
-    # plot_env(model, env, directory, chronic_id=i)
+    #     print(f"Plotting environment for chronic {i}")
+    #     plot_env(model, env, directory, chronic_id=i)
     # plot_env(NoActionAgent(), env, directory / "baseline", chronic_id=i)
     # plot_env(FullUpAgent(), env, directory / "full_up", chronic_id=i)
     # plot_env(FullDownAgent(), env, directory / "full_down", chronic_id=i)
@@ -355,5 +359,10 @@ if __name__ == "__main__":
     #         "episode_length": "no_action_episode_length",
     #     }
     # )
-    # df = pd.concat([model_df, baseline_df], axis=1)
-    # print(df)
+    env = make_env()
+    result_df_donothing = test_env(env, get_model("donothing", env), n_episodes=10)
+    env = make_env()
+    result_df_optim = test_env(env, get_model("optim", env), n_episodes=10)
+    combined_df = pd.concat([result_df_optim, result_df_donothing], axis=1)
+    print(combined_df)
+    combined_df.to_csv(args.checkpoint_dir / "results.csv")

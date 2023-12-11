@@ -7,7 +7,12 @@ import imageio
 import wandb
 from tqdm import tqdm
 from PPO import PPO
-from environments.Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
+from environments.Grid2OpResdispatchCurtail import (
+    Grid2OpEnvRedispatchCurtail,  # noqa: F401
+)
+from environments.Grid2OpResdispatchCurtailFlattened import (
+    Grid2OpEnvRedispatchCurtailFlattened,
+)
 from rich.progress import (
     Progress,
     BarColumn,
@@ -28,7 +33,7 @@ def train():
     )
 
     ####### initialize environment hyperparameters ######
-    env_name = "Grid2OpGeneratorTargetTestEnv"
+    env_name = "Grid2OpEnvRedispatchCurtailFlattened"
 
     has_continuous_action_space = True  # continuous action space; else discrete
 
@@ -78,7 +83,7 @@ def train():
 
     print("training environment name : " + env_name)
 
-    env = Grid2OpEnvRedispatchCurtail(env_name="l2rpn_case14_sandbox_train")
+    env = Grid2OpEnvRedispatchCurtailFlattened(env_name="l2rpn_case14_sandbox_train")
 
     ################### checkpointing ###################
     directory = "logs/PPO"
@@ -171,12 +176,12 @@ def train():
         task_episodes = progress.add_task(
             description="[magenta]Episodes...", total=max_training_episodes
         )
-        task_steps = progress.add_task(
-            description="[cyan]Training...",
-            total=env.grid2op_env.chronics_handler.max_timestep(),
-        )
         # training loop
         while not progress.finished:
+            task_steps = progress.add_task(
+                description="[cyan]Training...",
+                total=env.get_grid2op_env().chronics_handler.max_timestep(),
+            )
             state, _ = env.reset()
             current_ep_reward = 0
             done = False
@@ -191,7 +196,7 @@ def train():
                 ppo_agent.buffer.is_terminals.append(done)
 
                 time_step += 1
-                progress.update(task_steps, advance=1)
+                progress.update(task_steps, completed=env.get_time_step())
                 current_ep_reward += reward
 
                 # update PPO agent
@@ -253,6 +258,7 @@ def train():
             wandb.log({"reward": current_ep_reward, "timestep": time_step})
             print_running_reward += current_ep_reward
             print_running_episodes += 1
+            progress.remove_task(task_steps)
 
     env.close()
 
