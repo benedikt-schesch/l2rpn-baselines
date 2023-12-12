@@ -34,7 +34,7 @@ def load_env(config):
         return Grid2OpEnvRedispatchCurtail(env_name=config["env_name"])
     elif env_type == "Grid2OpEnvRedispatchCurtailFlattened":
         return Grid2OpEnvRedispatchCurtailFlattened(env_name=config["env_name"])
-    elif env_type == "Grid2OpEnvBilevelFlattened":
+    elif env_type == "Grid2OpBilevelFlattened":
         return Grid2OpBilevelFlattened(env_name=config["env_name"])
     else:
         raise ValueError(f"Unknown env type: {env_type}")
@@ -151,6 +151,7 @@ def train(config_path=Path("configs/config.json")):
 
     # printing and logging variables
     print_running_reward = 0
+    print_running_length = 0
     print_running_episodes = 0
 
     time_step = 0
@@ -203,17 +204,19 @@ def train(config_path=Path("configs/config.json")):
             if i_episode % print_freq == 0 and print_running_episodes != 0:
                 # print average reward till last episode
                 print_avg_reward = print_running_reward / print_running_episodes
+                print_avg_length = print_running_length / print_running_episodes
                 print_avg_reward = round(float(print_avg_reward), 2)
 
                 print(
-                    "Episode : {} \t\t Timestep : {} \t\t Average Reward : {} Entropy Loss weight: {}".format(
+                    "Episode : {} \t\t Timestep : {} \t\t Average Reward : {} Average length: {} Entropy Loss weight: {}".format(
                         i_episode,
                         time_step,
                         print_avg_reward,
+                        print_avg_length,
                         ppo_agent.entropy_loss_weight,
                     )
                 )
-
+                print_running_length = 0
                 print_running_reward = 0
                 print_running_episodes = 0
 
@@ -230,7 +233,7 @@ def train(config_path=Path("configs/config.json")):
                 )
                 print("Saving model at : " + checkpoint_path)
                 ppo_agent.save(checkpoint_path)
-                draw_agent(env, ppo_agent, curr_dir)
+                # draw_agent(env, ppo_agent, curr_dir)
                 print("Model saved")
                 print(
                     "Elapsed Time  : ",
@@ -242,6 +245,7 @@ def train(config_path=Path("configs/config.json")):
             i_episode += 1
             wandb.log({"reward": current_ep_reward, "timestep": time_step})
             print_running_reward += current_ep_reward
+            print_running_length += env.get_time_step()
             print_running_episodes += 1
             progress.remove_task(task_steps)
 

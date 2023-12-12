@@ -114,10 +114,10 @@ class GraphNet(nn.Module):
 class FlatNet(nn.Module):
     def __init__(self, obs_space, action_space, embed_dim, out_dim):
         super().__init__()
-        self.n_dim = action_space["redispatch"].shape[0]  # type: ignore
+        self.n_dim = action_space.shape[0]  # type: ignore
         self.embed_dim = embed_dim
         self.obs_space = obs_space
-        self.gen_dim = action_space["redispatch"].shape[0]
+        self.gen_dim = action_space.shape[0]
 
         self.model = nn.Sequential(
             nn.LazyLinear(self.embed_dim * 2),
@@ -125,17 +125,20 @@ class FlatNet(nn.Module):
             nn.LazyLinear(self.embed_dim),
             nn.LeakyReLU(),
         )
-        self.final_layer = nn.Linear(
-            self.embed_dim, out_dim * action_space["redispatch"].shape[0]
+        self.final_layer = nn.Sequential(
+            nn.Linear(self.embed_dim, out_dim * self.n_dim),
+            nn.ReLU(),
         )
         self.val_layer = nn.Linear(self.embed_dim, 1)
 
-        normc_initializer(0.001)(self.final_layer.weight)
+        normc_initializer(0.001)(self.final_layer[0].weight)
         normc_initializer(0.001)(self.val_layer.weight)
 
     def forward(
         self, input: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if len(input.shape) == 1:
+            input = input.unsqueeze(0)
         gen_embeddings = self.model(input)
         value = self.val_layer(gen_embeddings)
         action = self.final_layer(gen_embeddings)
@@ -156,7 +159,7 @@ class FlatNet(nn.Module):
 class ActorCritic(nn.Module):
     def __init__(self, obs_space, action_space):
         nn.Module.__init__(self)
-        self.n_dim = action_space["redispatch"].shape[0]  # type: ignore
+        self.n_dim = action_space.shape[0]  # type: ignore
         self.embed_dim = 64
 
         self.original_space = obs_space

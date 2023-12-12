@@ -16,7 +16,7 @@ from grid2op.Environment import Environment
 from torch_geometric.transforms import ToUndirected, AddSelfLoops
 from grid2op.Observation import BaseObservation
 from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
-from grid2op.Action import DontAct
+from grid2op.Action import DontAct, PlayableAction
 from grid2op.Opponent import BaseOpponent, NeverAttackBudget
 
 
@@ -38,6 +38,8 @@ class Grid2OpEnvRedispatchCurtail(Env):
             opponent_action_class=DontAct,
             opponent_class=BaseOpponent,
             opponent_budget_class=NeverAttackBudget,
+            action_class=PlayableAction,
+            test=True,
         )
         self.n_gen = self.grid2op_env.n_gen
 
@@ -66,11 +68,6 @@ class Grid2OpEnvRedispatchCurtail(Env):
             self.grid2op_env.observation_space.gen_max_ramp_up,  # type: ignore
             -self.grid2op_env.observation_space.gen_max_ramp_down,  # type: ignore
         )
-
-    def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
-        action = action * self.action_norm_factor
-        # action["redispatch"] = action["redispatch"] * self.action_norm_factor
-        return action
 
     def reset(
         self,
@@ -112,7 +109,7 @@ class Grid2OpEnvRedispatchCurtail(Env):
     def step(self, action: Union[None, torch.Tensor]):
         grid2op_action = self.grid2op_env.action_space()
         if action is not None:
-            action = self.denormalize_action(action)
+            # action = self.denormalize_action(action)
             grid2op_action.redispatch = action
         self.grid2op_obs, reward, done, info = self.grid2op_env.step(grid2op_action)
         self.time_step += 1
@@ -262,6 +259,9 @@ node_observation_space = OrderedDict(
         "shunt": lambda n_lements: spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_lements, 1), dtype=np.float32
         ),
+        "storage": lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 3), dtype=np.float32
+        ),
     }
 )
 
@@ -299,6 +299,11 @@ node_data_fields = OrderedDict(
         "shunt": [
             "id"
         ],  # {'id': 0, 'type': 'shunt', 'name': 'shunt_8_0', 'connected': True}
+        "storage": [
+            "connected",
+            "storage_charge",
+            "storage_power_target",
+        ],
     }
 )
 
@@ -318,6 +323,9 @@ edge_observation_space = OrderedDict(
         ),
         ("shunt", "shunt_to_bus", "bus"): lambda n_lements: spaces.Box(
             low=-np.inf, high=np.inf, shape=(n_lements, 4), dtype=np.float32
+        ),
+        ("storage", "storage_to_bus", "bus"): lambda n_lements: spaces.Box(
+            low=-np.inf, high=np.inf, shape=(n_lements, 5), dtype=np.float32
         ),
     }
 )
@@ -355,5 +363,12 @@ edge_data_fields = OrderedDict(
             "v",
             "q",
         },  # {'id': 0, 'type': 'shunt_to_bus', 'p': -6.938894e-16, 'q': -21.208096, 'v': 21.13022}
+        "storage_to_bus": {
+            "id",
+            "p",
+            "q",
+            "v",
+            "theta",
+        },
     }
 )

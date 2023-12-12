@@ -3,112 +3,106 @@ from typing import Union, Tuple
 import torch
 from gymnasium import Env
 from gymnasium import spaces
-from torch_geometric.data import HeteroData
-from .Grid2OpResdispatchCurtail import Grid2OpEnvRedispatchCurtail
-from grid2op.Environment import Environment
 from collections import OrderedDict
+from OptimizerNoCurtailement import OptimCVXPY
+from grid2op.Environment import Environment
+from grid2op.Observation import BaseObservation
+from grid2op.Chronics import GridStateFromFileWithForecastsWithoutMaintenance
+from grid2op.Action import DontAct, PlayableAction
+from grid2op.Opponent import BaseOpponent, NeverAttackBudget
+import grid2op
+from grid2op.Reward import LinesCapacityReward
+from lightsim2grid import LightSimBackend
+import numpy as np
 
 
 class Grid2OpBilevelFlattened(Env):
     def __init__(self, env_name: str = "l2rpn_case14_sandbox") -> None:
         super().__init__()
         # Initialize the Grid2OpEnvRedispatchCurtailFlattened environment
-        self.base_env = Grid2OpEnvRedispatchCurtail(env_name)
-        obs, info = self.base_env.reset()
+        self.grid2op_env = grid2op.make(
+            env_name,
+            reward_class=LinesCapacityReward,
+            backend=LightSimBackend(),
+            data_feeding_kwargs={
+                "gridvalueClass": GridStateFromFileWithForecastsWithoutMaintenance
+            },
+            opponent_attack_cooldown=999999,
+            opponent_attack_duration=0,
+            opponent_budget_per_ts=0,
+            opponent_init_budget=0,
+            opponent_action_class=DontAct,
+            opponent_class=BaseOpponent,
+            opponent_budget_class=NeverAttackBudget,
+            action_class=PlayableAction,
+            test=True,
+        )
+        obs = self.grid2op_env.reset()
         flat_features = self.flatten_features(obs)
         self.observation_space = spaces.Box(
             low=-float("inf"), high=float("inf"), shape=flat_features.shape
         )
-        self.feature_dim = flat_features.shape[1]
-        self.action_space = self.base_env.action_space
-
-    def flatten_features(self, hetero_data: HeteroData) -> torch.Tensor:
-        # Extract and flatten selected node features
-        node_features = []
-        for node_type in hetero_data.node_types:
-            # Only take the fields specified in node_data_fields
-            selected_fields = node_data_fields[node_type]
-            if len(selected_fields) == 0:
-                continue
-            features = torch.stack(
-                [
-                    hetero_data[node_type].x[:, i]
-                    for i, field in enumerate(selected_fields)
-                ],
-                dim=1,
-            )
-            node_features.append(features.flatten())
-
-        flattened_node_features = torch.cat(node_features)
-        # Define expected number of edges and default features for each edge type
-        expected_edges = {
-            edge_type: (expected_number_of_edges, default_feature_vector)
-            for edge_type, expected_number_of_edges, default_feature_vector in [
-                # Example: ("edge_type_name", 10, torch.zeros(feature_length)),
-                # Add entries for each edge type with their expected number of edges and default features
-            ]
-        }
-
-        # Extract and flatten all edge features, ensuring consistent number of edges
-        edge_features = []
-        for edge_type, (expected_count, default_features) in expected_edges.items():
-            if edge_type in hetero_data.edge_types:
-                current_edge_features = hetero_data[edge_type].edge_attr
-                edge_count_difference = expected_count - current_edge_features.size(0)
-                if edge_count_difference > 0:
-                    # Append default features to match the expected count
-                    padding = default_features.unsqueeze(0).repeat(
-                        edge_count_difference, 1
-                    )
-                    current_edge_features = torch.cat(
-                        [current_edge_features, padding], dim=0
-                    )
-                edge_features.append(current_edge_features.flatten())
-            else:
-                # Use default features for the entire edge type if it's completely missing
-                edge_features.append(default_features.repeat(expected_count).flatten())
-
-        flattened_edge_features = (
-            torch.cat(edge_features) if edge_features else torch.tensor([])
+        self.max_nb_bus = self.grid2op_env.n_sub * 2
+        self.action_space = spaces.Box(
+            low=-float("inf"),
+            high=float("inf"),
+            shape=(self.max_nb_bus,),
+        )
+        self.optimizer = OptimCVXPY(
+            self.get_grid2op_env().action_space,
+            self.get_grid2op_env(),
+            lines_x_pu=None,
+            margin_th_limit=0.9,
+            alpha_por_error=0.5,
+            rho_danger=0.9,
+            margin_rounding=0.01,
+            margin_sparse=5e-3,
         )
 
-        # Combine node and edge features
-        return torch.cat([flattened_node_features, flattened_edge_features]).unsqueeze(
-            0
-        )
+    def flatten_features(self, obs: BaseObservation) -> torch.Tensor:
+        features = [obs.rho, obs.load_p, obs.load_q, obs.gen_p, obs.gen_q]
+        features = torch.tensor(np.concatenate(features))
+        return features
 
-    def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
-        return self.base_env.denormalize_action(action)
-
-    def reset(self, **kwargs) -> Tuple[torch.Tensor, dict]:
-        hetero_data, info = self.base_env.reset(**kwargs)
-        obs = self.flatten_features(hetero_data)
+    def reset(self, seed: Union[None, int] = None) -> Tuple[torch.Tensor, dict]:
+        self.grid2op_env.set_id(2)
+        grid2op_obs = self.grid2op_env.reset()
+        self.latest_obs = grid2op_obs
+        self.done = False
         self.time_step = 0
-        assert obs.shape[1] == self.feature_dim
-        return obs, info
+        self.play_until_unsafe()
+        obs = self.flatten_features(self.latest_obs)
+        return obs, {}
+
+    def play_until_unsafe(self):
+        while self.latest_obs.rho.max() < self.optimizer.rho_danger and not self.done:
+            grid2op_act = self.optimizer.act(self.latest_obs)
+            self.latest_obs, reward, self.done, info = self.grid2op_env.step(
+                grid2op_act
+            )
+            self.time_step += 1
 
     def step(
         self, action: Union[None, torch.Tensor]
     ) -> Tuple[torch.Tensor, float, bool, bool, dict]:
-        hetero_data, reward, done, _, info = self.base_env.step(action)
-        self.time_step += 1
-        obs = self.flatten_features(hetero_data)
-        if not done:
-            assert obs.shape[1] == self.feature_dim
-        self.prev = hetero_data
-        return obs, reward, done, False, info
+        self.optimizer.set_target_injected_power(action)
+        grid2op_act = self.optimizer.act(self.latest_obs)
+        self.latest_obs, reward, self.done, info = self.grid2op_env.step(grid2op_act)
+        self.play_until_unsafe()
+        obs = self.flatten_features(self.latest_obs)
+        return obs, reward, self.done, False, info
 
     def render(self, mode="rgb_array"):
-        return self.base_env.render(mode)
+        return self.grid2op_env.render(mode)
 
     def get_time_step(self) -> int:
         return self.time_step
 
     def get_grid2op_env(self) -> Environment:
-        return self.base_env.get_grid2op_env()
+        return self.grid2op_env
 
     def get_grid2op_obs(self):
-        return self.base_env.get_grid2op_obs()
+        return self.latest_obs
 
 
 node_data_fields = OrderedDict(
@@ -145,5 +139,23 @@ node_data_fields = OrderedDict(
         "shunt": [
             # "id"
         ],  # {'id': 0, 'type': 'shunt', 'name': 'shunt_8_0', 'connected': True}
+        "storage": [
+            "storage_charge",
+            "storage_power_target",
+        ],
     }
 )
+
+
+if __name__ == "__main__":
+    env = Grid2OpBilevelFlattened("educ_case14_storage")
+    for i in range(1):
+        obs, _ = env.reset()
+        done = False
+        cum_reward = 0
+        while not done:
+            action = np.ones(env.max_nb_bus) * 1000
+            obs, reward, done, _, info = env.step(action)
+            cum_reward += reward
+        print("Cumulative reward", cum_reward)
+        print("Done", env.get_time_step())
