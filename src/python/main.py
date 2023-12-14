@@ -62,10 +62,10 @@ def train(config_path=Path("configs/config.json")):
     eps_clip = config["eps_clip"]
     gamma = config["gamma"]
     entropy_max_loss = config.get(
-        "entropy_max_loss", 0.0001
+        "entropy_max_loss", 0.01
     )  # Default value if not provided in config
     entropy_min_loss = config.get(
-        "entropy_min_loss", 0.0000001
+        "entropy_min_loss", 0.00001
     )  # Default value if not provided in config
     lr_actor = config["lr_actor"]
     lr_critic = config["lr_critic"]
@@ -243,7 +243,13 @@ def train(config_path=Path("configs/config.json")):
                     "--------------------------------------------------------------------------------------------"
                 )
             i_episode += 1
-            wandb.log({"reward": current_ep_reward, "timestep": time_step})
+            wandb.log(
+                {
+                    "reward": current_ep_reward,
+                    "timestep": time_step,
+                    "episode length": env.get_time_step(),
+                }
+            )
             print_running_reward += current_ep_reward
             print_running_length += env.get_time_step()
             print_running_episodes += 1

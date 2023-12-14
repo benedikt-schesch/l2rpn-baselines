@@ -138,6 +138,7 @@ class OptimCVXPY(BaseAgent):
         rho_danger: float = 0.95,
         margin_rounding: float = 0.01,
         margin_sparse: float = 5e-3,
+        delta=0.5,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         """Initialize this class
@@ -230,6 +231,7 @@ class OptimCVXPY(BaseAgent):
         self._margin_th_limit: cp.Parameter = cp.Parameter(
             value=margin_th_limit, nonneg=True
         )
+        self.delta = delta
 
         # takes into account the previous errors on the flows (in an additive fashion)
         # new flows are 1/x(theta_or - theta_ex) * alpha_por_error . (prev_flows - obs.p_or)
@@ -514,12 +516,12 @@ class OptimCVXPY(BaseAgent):
             # redispatching
             self._add_redisp_const(obs, bus_id)
 
-            # curtailment
-            mask_ = (self.bus_gen.value == bus_id) & obs.gen_renewable
-            self.curtail_down.value[
-                bus_id
-            ] = 0.0  # TODO obs.gen_p_before_curtail[mask_].sum() - tmp_[mask_].sum() ?
-            self.curtail_up.value[bus_id] = tmp_[mask_].sum()
+            # # curtailment
+            # mask_ = (self.bus_gen.value == bus_id) & obs.gen_renewable
+            # self.curtail_down.value[
+            #     bus_id
+            # ] = 0.0  # TODO obs.gen_p_before_curtail[mask_].sum() - tmp_[mask_].sum() ?
+            # self.curtail_up.value[bus_id] = tmp_[mask_].sum()
 
             # storage
             self._add_storage_const(obs, bus_id)
@@ -713,24 +715,33 @@ class OptimCVXPY(BaseAgent):
             [energy_added == 0]
         )
 
-        deviation = cp.sum_squares(self.target_injected_power - inj_bus)
+        deviation = cp.sum(cp.abs(self.target_injected_power - inj_bus))
 
         # objective
         # cost = cp.norm1(gp_var) + cp.norm1(lp_var)
-        cost = deviation * 5 + cp.sum_squares(
+        # Components of the cost function
+        deviation_component = deviation * self.delta
+        flow_limit_violation_component = cp.sum_squares(
             cp.pos(cp.abs(f_or_corr) - self._margin_th_limit * self._th_lim_mw)
         )
+
+        # Full cost function
+        cost = deviation_component + flow_limit_violation_component
 
         # solve
         # start_time = time.time()
         prob = cp.Problem(cp.Minimize(cost), constraints)
         has_converged = self._solve_problem(prob)
         # print("Solver time:",time.time()-start_time)
-
+        info = {}
         if has_converged:
             self.flow_computed[:] = f_or.value
-            res = (None, storage.value, redispatching.value)
+            res = (storage.value, redispatching.value)
             self._storage_power_obs.value = 0.0
+            info["deviation_component"] = deviation_component.value
+            info[
+                "flow_limit_violation_component"
+            ] = flow_limit_violation_component.value
         else:
             print("Problem with the optimization for all tested solvers in unsafe mode")
             self.logger.error(
@@ -739,8 +750,7 @@ class OptimCVXPY(BaseAgent):
             self.flow_computed[:] = np.NaN
             tmp_ = np.zeros(shape=self.nb_max_bus)
             res = (1.0 * tmp_, 1.0 * tmp_, 1.0 * tmp_)
-
-        return res
+        return res, info
 
     def _solve_problem(self, prob, solver_type=None):
         """
@@ -778,16 +788,14 @@ class OptimCVXPY(BaseAgent):
             )
             return False
 
-    def _clean_vect(self, curtailment, storage, redispatching):
+    def _clean_vect(self, storage, redispatching):
         """remove the value too small and set them at 0."""
-        # curtailment[np.abs(curtailment) < self.margin_sparse] = 0.0
         storage[np.abs(storage) < self.margin_sparse] = 0.0
         redispatching[np.abs(redispatching) < self.margin_sparse] = 0.0
 
     def to_grid2op(
         self,
         obs: BaseObservation,
-        curtailment: np.ndarray,
         storage: np.ndarray,
         redispatching: np.ndarray,
         act: BaseAction = None,
@@ -800,9 +808,6 @@ class OptimCVXPY(BaseAgent):
         ----------
         obs : BaseObservation
             The current observation, used to get some information about the grid
-
-        curtailment : np.ndarray
-            Representation of the curtailment
 
         storage : np.ndarray
             Action on storage units
@@ -822,7 +827,7 @@ class OptimCVXPY(BaseAgent):
         BaseAction
             The action taken represented as a grid2op action
         """
-        self._clean_vect(curtailment, storage, redispatching)
+        self._clean_vect(storage, redispatching)
 
         if act is None:
             act = self.action_space()
@@ -833,45 +838,6 @@ class OptimCVXPY(BaseAgent):
             storage_[:] = storage[self.bus_storage.value]
             # TODO what is multiple storage on a single bus ?
             act.storage_p = storage_
-
-        # curtailment
-        # becarefull here, the curtailment is given by the optimizer
-        # in the amount of MW you remove, grid2op
-        # expects a maximum value
-        # if np.any(np.abs(curtailment) > 0.0):
-        #     curtailment_mw = np.zeros(shape=act.n_gen) - 1.0
-        #     gen_curt = obs.gen_renewable & (obs.gen_p > 0.1)
-        #     idx_gen = self.bus_gen.value[gen_curt]
-        #     tmp_ = curtailment[idx_gen]
-        #     modif_gen_optim = tmp_ != 0.0
-        #     gen_p = 1.0 * obs.gen_p
-        #     aux_ = curtailment_mw[gen_curt]
-        #     aux_[modif_gen_optim] = (
-        #         gen_p[gen_curt][modif_gen_optim]
-        #         - tmp_[modif_gen_optim]
-        #         * gen_p[gen_curt][modif_gen_optim]
-        #         / self.gen_per_bus.value[idx_gen][modif_gen_optim]
-        #     )
-        #     aux_[~modif_gen_optim] = -1.0
-        #     curtailment_mw[gen_curt] = aux_
-        #     curtailment_mw[~gen_curt] = -1.0
-
-        #     if safe:
-        #         # id of the generators that are "curtailed" at their max value
-        #         # in safe mode i remove all curtailment
-        #         gen_id_max = (
-        #             curtailment_mw >= obs.gen_p_before_curtail
-        #         ) & obs.gen_renewable
-        #         if np.any(gen_id_max):
-        #             curtailment_mw[gen_id_max] = act.gen_pmax[gen_id_max]
-        #     act.curtail_mw = curtailment_mw
-        # elif safe and np.abs(self.curtail_down.value).max() == 0.0:
-        #     # if curtail_down is all 0. then it means all generators are at their max
-        #     # output in the observation, curtailment is de facto to 1, I "just"
-        #     # need to tell it.
-        #     vect = 1.0 * act.gen_pmax
-        #     vect[~obs.gen_renewable] = -1.0
-        #     act.curtail_mw = vect
 
         # redispatching
         if np.any(np.abs(redispatching) > 0.0):
@@ -981,9 +947,10 @@ class OptimCVXPY(BaseAgent):
             # update the observation
             self.update_parameters(obs)
             # solve the problem
-            curtailment, storage, redispatching = self.compute_optimum_unsafe()
+            res, info = self.compute_optimum_unsafe()
+            storage, redispatching = res
             # get back the grid2op representation
-            act = self.to_grid2op(obs, curtailment, storage, redispatching, safe=False)
+            act = self.to_grid2op(obs, storage, redispatching, safe=False)
         else:
             # I do nothing
             self.logger.info(f"step {obs.current_step}, do nothing mode")
@@ -991,7 +958,10 @@ class OptimCVXPY(BaseAgent):
             act = self.action_space()
 
             self.flow_computed[:] = obs.p_or
-        return act
+            info = {}
+            info["deviation_component"] = 0.0
+            info["flow_limit_violation_component"] = 0.0
+        return act, info
 
 
 def make_agent(

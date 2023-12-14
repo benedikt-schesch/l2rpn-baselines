@@ -127,7 +127,6 @@ class FlatNet(nn.Module):
         )
         self.final_layer = nn.Sequential(
             nn.Linear(self.embed_dim, out_dim * self.n_dim),
-            nn.ReLU(),
         )
         self.val_layer = nn.Linear(self.embed_dim, 1)
 
@@ -141,7 +140,7 @@ class FlatNet(nn.Module):
             input = input.unsqueeze(0)
         gen_embeddings = self.model(input)
         value = self.val_layer(gen_embeddings)
-        action = self.final_layer(gen_embeddings)
+        action = self.final_layer(gen_embeddings) * 100
         action_mean = action[:, : self.gen_dim].reshape(input.shape[0], -1)
         action_std = F.softplus(action[:, self.gen_dim :]).reshape(input.shape[0], -1)
         return action_mean, action_std, value
