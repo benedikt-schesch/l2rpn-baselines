@@ -64,7 +64,7 @@ class PPO:
         self.optimizer = torch.optim.Adam(
             [
                 {
-                    "params": self.policy.agent.get_backbone_params(),
+                    "params": self.policy.agent.get_backbone_params(),  # TODO: Split backbone and actor/critic
                     "lr": max(lr_actor, lr_critic),
                 },
                 {"params": self.policy.agent.get_actor_params(), "lr": lr_actor},
@@ -118,7 +118,7 @@ class PPO:
 
         # Normalizing the rewards
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7) # TODO: Remove
 
         # convert list to tensor
         if type(self.buffer.states[0]) == HeteroData:

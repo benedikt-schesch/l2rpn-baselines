@@ -49,14 +49,14 @@ class Grid2OpBilevelFlattened(Env):
             high=float("inf"),
             shape=(self.max_nb_bus,),
         )
-        self.delta = 0.01
+        self.delta = 0.1
         self.optimizer = OptimCVXPY(
             self.get_grid2op_env().action_space,
             self.get_grid2op_env(),
             lines_x_pu=None,
             margin_th_limit=0.9,
             alpha_por_error=0.5,
-            rho_danger=0.0,
+            rho_danger=0.9,
             margin_rounding=0.01,
             margin_sparse=5e-3,
             delta=self.delta,
