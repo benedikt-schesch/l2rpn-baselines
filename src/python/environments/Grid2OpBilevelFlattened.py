@@ -68,7 +68,7 @@ class Grid2OpBilevelFlattened(Env):
         return features
 
     def reset(self, seed: Union[None, int] = None) -> Tuple[torch.Tensor, dict]:
-        self.grid2op_env.set_id(2)
+        self.grid2op_env.set_id(6)
         grid2op_obs = self.grid2op_env.reset()
         self.latest_obs = grid2op_obs
         self.done = False
