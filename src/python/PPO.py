@@ -63,10 +63,10 @@ class PPO:
         self.policy = ActorCritic(observation_space, action_space).to(device)
         self.optimizer = torch.optim.Adam(
             [
-                {
-                    "params": self.policy.agent.get_backbone_params(),  # TODO: Split backbone and actor/critic
-                    "lr": max(lr_actor, lr_critic),
-                },
+                # {
+                #     "params": self.policy.agent.get_backbone_params(),  # TODO: Split backbone and actor/critic
+                #     "lr": max(lr_actor, lr_critic),
+                # },
                 {"params": self.policy.agent.get_actor_params(), "lr": lr_actor},
                 {"params": self.policy.agent.get_critic_params(), "lr": lr_critic},
             ]

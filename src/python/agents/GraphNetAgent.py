@@ -119,29 +119,35 @@ class FlatNet(nn.Module):
         self.obs_space = obs_space
         self.gen_dim = action_space.shape[0]
 
-        self.model = nn.Sequential(
-            nn.LazyLinear(self.embed_dim * 2),
-            nn.LeakyReLU(),
+        # self.model = nn.Sequential(
+        #     nn.LazyLinear(self.embed_dim * 2),
+        #     nn.LeakyReLU(),
+        #     nn.LazyLinear(self.embed_dim),
+        #     nn.LeakyReLU(),
+        # )
+        self.actor_layer = nn.Sequential(
             nn.LazyLinear(self.embed_dim),
             nn.LeakyReLU(),
-        )
-        self.final_layer = nn.Sequential(
             nn.Linear(self.embed_dim, out_dim * self.n_dim),
         )
-        self.val_layer = nn.Linear(self.embed_dim, 1)
+        self.val_layer = nn.Sequential(
+            nn.LazyLinear(self.embed_dim),
+            nn.LeakyReLU(),
+            nn.Linear(self.embed_dim, 1),
+        )
 
-        normc_initializer(0.001)(self.final_layer[0].weight)
-        normc_initializer(0.001)(self.val_layer.weight)
+        # normc_initializer(0.001)(self.actor_layer[-1].weight)
+        normc_initializer(0.001)(self.val_layer[-1].weight)
 
     def forward(
         self, input: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if len(input.shape) == 1:
             input = input.unsqueeze(0)
-        gen_embeddings = self.model(input)
-        value = self.val_layer(gen_embeddings)
-        action = self.final_layer(gen_embeddings) * 100
-        action_mean = action[:, : self.gen_dim].reshape(input.shape[0], -1)
+        # gen_embeddings = self.model(input)
+        value = self.val_layer(input)
+        action = self.actor_layer(input)
+        action_mean = action[:, : self.gen_dim].reshape(input.shape[0], -1) * 1000
         action_std = F.softplus(action[:, self.gen_dim :]).reshape(input.shape[0], -1)
         return action_mean, action_std, value
 
@@ -149,7 +155,7 @@ class FlatNet(nn.Module):
         return self.model.parameters()
 
     def get_actor_params(self):
-        return self.final_layer.parameters()
+        return self.actor_layer.parameters()
 
     def get_critic_params(self):
         return self.val_layer.parameters()

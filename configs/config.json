@@ -11,5 +11,5 @@
   "print_freq": 1,
   "random_seed": 42,
   "save_model_freq": 1000,
-  "update_timestep": 1000
+  "update_timestep": 100
 }

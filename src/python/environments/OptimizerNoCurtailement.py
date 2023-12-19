@@ -749,7 +749,7 @@ class OptimCVXPY(BaseAgent):
             )
             self.flow_computed[:] = np.NaN
             tmp_ = np.zeros(shape=self.nb_max_bus)
-            res = (1.0 * tmp_, 1.0 * tmp_, 1.0 * tmp_)
+            res = (1.0 * tmp_, 1.0 * tmp_)
         return res, info
 
     def _solve_problem(self, prob, solver_type=None):
