@@ -57,7 +57,6 @@ def train(config_path=Path("configs/config.json")):
     max_training_episodes = config["max_training_episodes"]
     print_freq = config["print_freq"]
     save_model_freq = config["save_model_freq"]
-    update_timestep = config["update_timestep"]
     K_epochs = config["K_epochs"]
     eps_clip = config["eps_clip"]
     gamma = config["gamma"]
@@ -106,7 +105,6 @@ def train(config_path=Path("configs/config.json")):
     print(
         "--------------------------------------------------------------------------------------------"
     )
-    print("PPO update frequency : " + str(update_timestep) + " timesteps")
     print("PPO K epochs : ", K_epochs)
     print("PPO epsilon clip : ", eps_clip)
     print("discount factor (gamma) : ", gamma)
@@ -184,21 +182,18 @@ def train(config_path=Path("configs/config.json")):
                 time_step += 1
                 progress.update(task_steps, completed=env.get_time_step())
                 current_ep_reward += reward
-
-                # update PPO agent
-                if time_step % update_timestep == 0:
-                    ppo_agent.update()
-                    ppo_agent.entropy_loss_weight = max(
-                        entropy_min_loss,
-                        entropy_max_loss
-                        - (entropy_max_loss - entropy_min_loss)
-                        * time_step
-                        / max_training_episodes,
-                    )
-
                 # break; if the episode is over
                 if terminated:
                     break
+
+            ppo_agent.update(time_step)
+            ppo_agent.entropy_loss_weight = max(
+                entropy_min_loss,
+                entropy_max_loss
+                - (entropy_max_loss - entropy_min_loss)
+                * time_step
+                / max_training_episodes,
+            )
             progress.update(task_episodes, advance=1)
 
             if i_episode % print_freq == 0 and print_running_episodes != 0:

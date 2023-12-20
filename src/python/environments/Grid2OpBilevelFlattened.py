@@ -104,7 +104,7 @@ class Grid2OpBilevelFlattened(Env):
         info["grid2op_redispatch"] = grid2op_act.redispatch
         info["grid2op_storage_p"] = grid2op_act.storage_p
         info["action"] = action
-        return obs, 1 + reward, self.done, False, info
+        return obs, 3 + reward, self.done, False, info
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)

@@ -104,7 +104,7 @@ class PPO:
 
         return action.detach().cpu().numpy().flatten()
 
-    def update(self):
+    def update(self, timestep):
         # Monte Carlo estimate of returns
         rewards = []
         discounted_reward = 0
@@ -193,23 +193,16 @@ class PPO:
                 "policy_loss": running_policy_loss / self.K_epochs,
                 "value_loss": running_value_loss / self.K_epochs,
                 "entropy_loss": running_entropy_loss / self.K_epochs,
-            }
-        )
-        wandb.log(
-            {
                 "value_loss_scaled": running_value_loss / self.K_epochs * 0.5,
                 "entropy_loss_scaled": running_entropy_loss
                 / self.K_epochs
                 * self.entropy_loss_weight,
+                "optimizer learning rate actor": self.optimizer.param_groups[0]["lr"],
+                "optimizer learning rate critic": self.optimizer.param_groups[1]["lr"],
+                "timestep": timestep,
             }
         )
         self.scheduler.step()
-        wandb.log(
-            {
-                "optimizer learning rate actor": self.optimizer.param_groups[0]["lr"],
-                "optimizer learning rate critic": self.optimizer.param_groups[1]["lr"],
-            }
-        )
         # Copy new weights into old policy
         self.policy_old.load_state_dict(self.policy.state_dict())
 
