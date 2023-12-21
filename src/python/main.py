@@ -60,12 +60,8 @@ def train(config_path=Path("configs/config.json")):
     K_epochs = config["K_epochs"]
     eps_clip = config["eps_clip"]
     gamma = config["gamma"]
-    entropy_max_loss = config.get(
-        "entropy_max_loss", 0.1
-    )  # Default value if not provided in config
-    entropy_min_loss = config.get(
-        "entropy_min_loss", 0.0001
-    )  # Default value if not provided in config
+    entropy_max_loss = config.get("entropy_max_loss")
+    entropy_min_loss = config.get("entropy_min_loss")
     lr_actor = config["lr_actor"]
     lr_critic = config["lr_critic"]
     random_seed = config.get("random_seed", None)  # Default to None if not provided

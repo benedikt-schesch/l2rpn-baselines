@@ -1,5 +1,7 @@
 {
   "K_epochs": 40,
+  "entropy_max_loss": 0.01,
+  "entropy_min_loss": 0.0001,
   "env_name": "educ_case14_storage",
   "env_type": "Grid2OpBilevelFlattened",
   "eps_clip": 0.2,
