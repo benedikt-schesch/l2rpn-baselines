@@ -61,10 +61,10 @@ def train(config_path=Path("configs/config.json")):
     eps_clip = config["eps_clip"]
     gamma = config["gamma"]
     entropy_max_loss = config.get(
-        "entropy_max_loss", 0.0001
+        "entropy_max_loss", 0.1
     )  # Default value if not provided in config
     entropy_min_loss = config.get(
-        "entropy_min_loss", 0.00001
+        "entropy_min_loss", 0.0001
     )  # Default value if not provided in config
     lr_actor = config["lr_actor"]
     lr_critic = config["lr_critic"]
