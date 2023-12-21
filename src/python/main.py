@@ -154,6 +154,7 @@ def train(config_path=Path("configs/config.json")):
 
     time_step = 0
     i_episode = 0
+    max_reward = -np.inf
     with Progress(
         BarColumn(), TimeElapsedColumn(), TimeRemainingColumn(), MofNCompleteColumn()
     ) as progress:
@@ -185,6 +186,16 @@ def train(config_path=Path("configs/config.json")):
                 # break; if the episode is over
                 if terminated:
                     break
+
+            if current_ep_reward > max_reward:
+                # Save best model
+                max_reward = current_ep_reward
+                checkpoint_path = (
+                    f"{checkpoint_dir}/PPO_{env_name}_{random_seed}_best.pth"
+                )
+                print("Saving best model at : " + checkpoint_path)
+                ppo_agent.save(checkpoint_path)
+                print("Best model saved")
 
             ppo_agent.update(time_step)
             ppo_agent.entropy_loss_weight = max(
