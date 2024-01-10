@@ -42,15 +42,15 @@ def get_model(model_name):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
-        "--rho_safe", type=float, default=0.0, help="rho_safe parameter"
+        "--rho_safe", type=float, default=0.85, help="rho_safe parameter"
     )
     argparser.add_argument(
-        "--rho_danger", type=float, default=0.0, help="rho_danger parameter"
+        "--rho_danger", type=float, default=0.95, help="rho_danger parameter"
     )
     argparser.add_argument(
         "--model",
         type=str,
-        default="custom",
+        default="full",
         help="model to test: full, custom, no_storage, no_redispatch, no_curtailment",
     )
     argparser.add_argument(

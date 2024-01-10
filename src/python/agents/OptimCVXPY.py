@@ -146,7 +146,7 @@ class OptimCVXPY(BaseAgent):
 
     """
 
-    SOLVER_TYPES = [cp.OSQP, cp.SCS, cp.SCIPY]
+    SOLVER_TYPES = [cp.OSQP, cp.SCIPY]
     # NB: SCIPY rarely converge
     # SCS converged almost all the time, but is inaccurate
 
@@ -789,6 +789,7 @@ class OptimCVXPY(BaseAgent):
         if has_converged:
             self.flow_computed[:] = f_or.value
         else:
+            print("Problem with dc approximation for all solver")
             self.logger.error(
                 f"Problem with dc approximation for all solver ({type(self).SOLVER_TYPES}). "
                 "Is your grid connected (one single connex component) ?"
@@ -1194,6 +1195,7 @@ class OptimCVXPY(BaseAgent):
             self._storage_power_obs.value = 0.0
             # TODO : assign a value to curtailment_mw that makes it "+1" (cancel curtailment) in the next stuff
         else:
+            print("Problem with the optimization for all tested solvers in safe mode")
             self.logger.error(
                 f"Problem with the optimization for all tested solvers ({type(self).SOLVER_TYPES})"
             )

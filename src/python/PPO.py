@@ -81,7 +81,7 @@ class PPO:
         ).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-        self.MseLoss = nn.MSELoss()
+        self.MseLoss = nn.HuberLoss(delta=1.0)
 
     def select_action_eval(self, state):
         with torch.no_grad():
@@ -184,6 +184,7 @@ class PPO:
             running_entropy_loss += dist_entropy.mean().item()
             # take gradient step
             self.optimizer.zero_grad()
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 0.1)
             loss.mean().backward()
             self.optimizer.step()
 

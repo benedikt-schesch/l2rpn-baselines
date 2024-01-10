@@ -124,7 +124,7 @@ class OptimCVXPY(BaseAgent):
 
     """
 
-    SOLVER_TYPES = [cp.OSQP, cp.SCS, cp.SCIPY]
+    SOLVER_TYPES = [cp.MOSEK]  # , cp.SCS
     # NB: SCIPY rarely converge
     # SCS converged almost all the time, but is inaccurate
 
@@ -737,6 +737,7 @@ class OptimCVXPY(BaseAgent):
         if has_converged:
             self.flow_computed[:] = f_or.value
             res = (storage.value, redispatching.value)
+            # assert (redispatching.value <= self.redisp_up.value+100).all() and (redispatching.value >= -self.redisp_down.value-100).all()
             self._storage_power_obs.value = 0.0
             info["deviation_component"] = deviation_component.value
             info[
@@ -771,7 +772,9 @@ class OptimCVXPY(BaseAgent):
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore")
                 tmp_ = prob.solve(
-                    solver=solver_type, warm_start=False
+                    solver=solver_type,
+                    warm_start=False,
+                    verbose=True,
                 )  # prevent warm start (for now)
 
             if np.isfinite(tmp_):
@@ -951,6 +954,7 @@ class OptimCVXPY(BaseAgent):
             storage, redispatching = res
             # get back the grid2op representation
             act = self.to_grid2op(obs, storage, redispatching, safe=False)
+            assert np.linalg.norm(act.redispatch) <= 1000
         else:
             # I do nothing
             self.logger.info(f"step {obs.current_step}, do nothing mode")

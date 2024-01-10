@@ -197,7 +197,7 @@ def plot_cost(infos, delta, plot_dir):
     plt.close(fig)  # Close the figure to free memory
 
 
-def play_episode(action_baseline):
+def play_episode(env: Grid2OpBilevelFlattened, action_baseline: np.ndarray):
     obs, _ = env.reset()
     done = False
     cum_reward = 0
@@ -254,7 +254,35 @@ def plot_action_difference(infos, plot_dir):
     plt.close(fig)  # Close the figure to free memory
 
 
-def plot_generator_power(infos, plot_dir):
+# Plot the norm of the actions taken by the agent
+def plot_actions(infos, plot_dir, labels):
+    # Number of episodes
+    num_infos = len(infos)
+
+    # Create a figure with subplots
+    fig, axs = plt.subplots(num_infos, 1, figsize=(10, 5 * num_infos))
+
+    for info_idx in range(len(infos)):
+        current_redispatch = np.array(
+            [np.linalg.norm(info["grid2op_redispatch"]) for info in infos[info_idx]]
+        )
+        current_storage_p = np.array(
+            [np.linalg.norm(info["grid2op_storage_p"]) for info in infos[info_idx]]
+        )
+
+        # Plot on the i-th subplot
+        ax = axs[info_idx] if num_infos > 1 else axs
+        ax.plot(current_redispatch, label="Redispatch Norm")
+        ax.plot(current_storage_p, label="Storage Norm")
+        ax.set_title(labels[info_idx])
+        ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(plot_dir / "actions_combined.pdf")
+    plt.close(fig)  # Close the figure to free memory
+
+
+def plot_generator_power(infos, plot_dir, labels):
     # Determine the number of generators from the first observation of the first episode
     num_generators = infos[0][0]["obs"].gen_p.shape[0]
     num_episodes = len(infos)
@@ -265,13 +293,13 @@ def plot_generator_power(infos, plot_dir):
     for gen_index in range(num_generators):
         ax = axs[gen_index] if num_generators > 1 else axs
 
-        for episode_index in range(num_episodes):
+        for infos_idx in range(num_episodes):
             # Extract the power level for the current generator across all time steps in this episode
             gen_power_levels = np.array(
-                [info["obs"].gen_p[gen_index] for info in infos[episode_index]]
+                [info["obs"].gen_p[gen_index] for info in infos[infos_idx]]
             )
 
-            ax.plot(gen_power_levels, label=f"Episode {episode_index}")
+            ax.plot(gen_power_levels, label=labels[infos_idx])
 
         ax.set_title(f"Generator {gen_index} Power Across Episodes")
         ax.set_xlabel("Time Step")
@@ -283,7 +311,7 @@ def plot_generator_power(infos, plot_dir):
     plt.close(fig)  # Close the figure to free memory
 
 
-def plot_storage_charge(infos, plot_dir):
+def plot_storage_charge(infos, plot_dir, labels):
     # Determine the number of storage units from the first observation of the first episode
     num_storage_units = infos[0][0]["obs"].storage_charge.shape[0]
     num_episodes = len(infos)
@@ -294,16 +322,13 @@ def plot_storage_charge(infos, plot_dir):
     for storage_index in range(num_storage_units):
         ax = axs[storage_index] if num_storage_units > 1 else axs
 
-        for episode_index in range(num_episodes):
+        for infos_idx in range(num_episodes):
             # Extract the storage charge for the current storage unit across all time steps in this episode
             storage_charge_levels = np.array(
-                [
-                    info["obs"].storage_charge[storage_index]
-                    for info in infos[episode_index]
-                ]
+                [info["obs"].storage_charge[storage_index] for info in infos[infos_idx]]
             )
 
-            ax.plot(storage_charge_levels, label=f"Episode {episode_index}")
+            ax.plot(storage_charge_levels, label=labels[infos_idx])
 
         ax.set_title(f"Storage Unit {storage_index} Charge Across Episodes")
         ax.set_xlabel("Time Step")
@@ -375,7 +400,7 @@ if __name__ == "__main__":
     action_baseline = (2 * np.random.randn(1000, env.action_space.shape[0]) - 1) * 100
     infos = []
     for i in range(4):
-        infos.append(play_episode(action_baseline))
+        infos.append(play_episode(env, action_baseline))
     plot_action_difference(infos, plot_dir)
     plot_generator_power(infos, plot_dir)
     plot_storage_charge(infos, plot_dir)

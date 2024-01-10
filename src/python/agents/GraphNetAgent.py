@@ -151,9 +151,6 @@ class FlatNet(nn.Module):
         action_std = F.softplus(action[:, self.gen_dim :]).reshape(input.shape[0], -1)
         return action_mean, action_std, value
 
-    def get_backbone_params(self):
-        return self.model.parameters()
-
     def get_actor_params(self):
         return self.actor_layer.parameters()
 
