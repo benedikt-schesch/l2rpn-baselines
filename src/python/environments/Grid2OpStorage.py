@@ -13,7 +13,7 @@ from lightsim2grid import LightSimBackend
 import numpy as np
 
 
-class Grid2OpRedispatchStorage(Env):
+class Grid2OpStorage(Env):
     def __init__(self, env_name: str = "educ_case14_storage") -> None:
         super().__init__()
         # Initialize the Grid2OpEnvRedispatchCurtailFlattened environment
@@ -42,16 +42,9 @@ class Grid2OpRedispatchStorage(Env):
             low=-float("inf"), high=float("inf"), shape=flat_features.shape
         )
         self.action_space = spaces.Box(
-            low=-np.concatenate(
-                [
-                    self.grid2op_env.storage_max_p_absorb,
-                    self.grid2op_env.gen_max_ramp_down,
-                ]
-            ),
-            high=np.concatenate(
-                [self.grid2op_env.storage_max_p_prod, self.grid2op_env.gen_max_ramp_up]
-            ),
-            shape=(self.grid2op_env.n_storage + self.grid2op_env.n_gen,),
+            low=-self.grid2op_env.storage_max_p_absorb,
+            high=self.grid2op_env.storage_max_p_prod,
+            shape=(self.grid2op_env.n_storage,),
         )
 
     def flatten_features(self, obs: BaseObservation) -> np.ndarray:
@@ -69,10 +62,11 @@ class Grid2OpRedispatchStorage(Env):
         obs = self.flatten_features(self.latest_obs)
         return obs, {}
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+    def step(
+        self, action: Union[None, np.ndarray]
+    ) -> Tuple[np.ndarray, float, bool, bool, dict]:
         grid2op_act = self.grid2op_env.action_space({})
-        grid2op_act.storage_p = action[: self.grid2op_env.n_storage]
-        grid2op_act.redispatch = action[self.grid2op_env.n_storage :]
+        grid2op_act.storage_p = action
         self.latest_obs, reward, self.done, info = self.grid2op_env.step(grid2op_act)
         self.time_step += 1
         obs = self.flatten_features(self.latest_obs)
