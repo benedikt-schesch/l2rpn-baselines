@@ -39,6 +39,7 @@ class Grid2OpBilevelFlattened(Env):
             action_class=PlayableAction,
             test=True,
         )
+        self.time_step = 0
         obs = self.grid2op_env.reset()
         flat_features = self.flatten_features(obs)
         self.observation_space = spaces.Box(
@@ -46,8 +47,8 @@ class Grid2OpBilevelFlattened(Env):
         )
         self.max_nb_bus = self.grid2op_env.n_sub * 2
         self.action_space = spaces.Box(
-            low=-float("inf"),
-            high=float("inf"),
+            low=-100,
+            high=100,
             shape=(self.max_nb_bus,),
         )
         self.delta = 0.01
@@ -62,10 +63,11 @@ class Grid2OpBilevelFlattened(Env):
             margin_sparse=5e-3,
             delta=self.delta,
         )
+        self.max_episode_length = self.grid2op_env.chronics_handler.max_timestep()
 
     def flatten_features(self, obs: BaseObservation) -> torch.Tensor:
-        features = [obs.rho, obs.load_p, obs.load_q, obs.gen_p, obs.gen_q]
-        features = torch.tensor(np.concatenate(features))
+        features = [np.array([self.time_step / 288])]
+        features = torch.tensor(np.concatenate(features)).float().view(1, -1)
         return features
 
     def reset(self, seed: Union[None, int] = None) -> Tuple[torch.Tensor, dict]:

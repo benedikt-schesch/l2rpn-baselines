@@ -1,0 +1,16 @@
+{
+  "K_epochs": 40,
+  "entropy_max_loss": 0.0,
+  "entropy_min_loss": 0.0,
+  "env_name": "l2rpn_case14_sandbox",
+  "env_type": "GeneratorTargetEnv",
+  "eps_clip": 0.2,
+  "eval_model_freq": 500,
+  "gamma": 0.99,
+  "lr_actor": 1e-06,
+  "lr_critic": 1e-05,
+  "max_training_episodes": 5000,
+  "random_seed": 42,
+  "save_model_freq": 1000,
+  "wandb_project": "Generator Target Env"
+}

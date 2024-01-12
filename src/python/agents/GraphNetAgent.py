@@ -136,8 +136,10 @@ class FlatNet(nn.Module):
             nn.Linear(self.embed_dim, 1),
         )
 
-        # normc_initializer(0.001)(self.actor_layer[-1].weight)
-        normc_initializer(0.001)(self.val_layer[-1].weight)
+        normc_initializer(0.0001)(self.actor_layer[-1].weight)
+        self.actor_layer[-1].bias.data.fill_(0)
+        normc_initializer(0.0001)(self.val_layer[-1].weight)
+        self.val_layer[-1].bias.data.fill_(0)
 
     def forward(
         self, input: torch.Tensor
@@ -147,12 +149,9 @@ class FlatNet(nn.Module):
         # gen_embeddings = self.model(input)
         value = self.val_layer(input)
         action = self.actor_layer(input)
-        action_mean = action[:, : self.gen_dim].reshape(input.shape[0], -1) * 1000
+        action_mean = action[:, : self.gen_dim].reshape(input.shape[0], -1)
         action_std = F.softplus(action[:, self.gen_dim :]).reshape(input.shape[0], -1)
         return action_mean, action_std, value
-
-    def get_backbone_params(self):
-        return self.model.parameters()
 
     def get_actor_params(self):
         return self.actor_layer.parameters()
