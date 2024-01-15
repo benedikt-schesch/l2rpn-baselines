@@ -17,6 +17,7 @@ from environments.GeneratorTargetEnv import GeneratorTargetEnv
 from environments.Grid2OpRedispatchStorage import Grid2OpRedispatchStorage
 from environments.Grid2OpBilevelFlattened import Grid2OpBilevelFlattened
 from environments.Grid2OpStorage import Grid2OpStorage
+from environments.Grid2OpControlOptimizer import Grid2OpControlOptimizationMode
 from rich.progress import (
     Progress,
     BarColumn,
@@ -45,6 +46,8 @@ def load_env(config):
         return Grid2OpRedispatchStorage(env_name=config["env_name"])
     elif env_type == "Grid2opStorage":
         return Grid2OpStorage(env_name=config["env_name"])
+    elif env_type == "Grid2OpControlOptimizationMode":
+        return Grid2OpControlOptimizationMode(env_name=config["env_name"])
     else:
         raise ValueError(f"Unknown env type: {env_type}")
 

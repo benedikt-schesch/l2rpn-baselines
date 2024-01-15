@@ -75,7 +75,7 @@ def main(config_path: Path = Path("configs/config_target_env.json")):
 if __name__ == "__main__":
     argparse = argparse.ArgumentParser()
     argparse.add_argument(
-        "--config", type=Path, default="configs/config_direct_redispatch_storage.json"
+        "--config", type=Path, default="configs/config_choose_optimization_mode.json"
     )
     args = argparse.parse_args()
     main(args.config)

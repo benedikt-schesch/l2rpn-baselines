@@ -11,9 +11,10 @@ import grid2op
 from grid2op.Reward import LinesCapacityReward
 from lightsim2grid import LightSimBackend
 import numpy as np
+from .OptimizerChooseCotrolMode import OptimCVXPY
 
 
-class Grid2OpStorage(Env):
+class Grid2OpControlOptimizationMode(Env):
     def __init__(self, env_name: str = "educ_case14_storage") -> None:
         super().__init__()
         # Initialize the Grid2OpEnvRedispatchCurtailFlattened environment
@@ -41,10 +42,17 @@ class Grid2OpStorage(Env):
         self.observation_space = spaces.Box(
             low=-float("inf"), high=float("inf"), shape=flat_features.shape
         )
-        self.action_space = spaces.Box(
-            low=-self.grid2op_env.storage_max_p_absorb,
-            high=self.grid2op_env.storage_max_p_prod,
-            shape=(self.grid2op_env.n_storage,),
+        self.action_space = spaces.Discrete(3)
+        self.delta = 0.01
+        self.optimizer = OptimCVXPY(
+            self.get_grid2op_env().action_space,
+            self.get_grid2op_env(),
+            lines_x_pu=None,
+            margin_th_limit=0.9,
+            alpha_por_error=0.5,
+            margin_rounding=0.01,
+            margin_sparse=5e-3,
+            # delta=self.delta,
         )
 
     def flatten_features(self, obs: BaseObservation) -> np.ndarray:
@@ -62,11 +70,8 @@ class Grid2OpStorage(Env):
         obs = self.flatten_features(self.latest_obs)
         return obs, {}
 
-    def step(
-        self, action: Union[None, np.ndarray]
-    ) -> Tuple[np.ndarray, float, bool, bool, dict]:
-        grid2op_act = self.grid2op_env.action_space({})
-        grid2op_act.storage_p = action
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, dict]:
+        grid2op_act = self.optimizer.act(action, self.latest_obs)
         self.latest_obs, reward, self.done, info = self.grid2op_env.step(grid2op_act)
         self.time_step += 1
         obs = self.flatten_features(self.latest_obs)
@@ -89,6 +94,6 @@ class Grid2OpStorage(Env):
 
 
 if __name__ == "__main__":
-    env = Grid2OpStorage()
+    env = Grid2OpControlOptimizationMode()
     env.reset()
     env.step(env.action_space.sample())
