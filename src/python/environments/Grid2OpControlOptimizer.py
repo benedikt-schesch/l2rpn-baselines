@@ -57,9 +57,9 @@ class Grid2OpControlOptimizationMode(Env):
 
     def flatten_features(self, obs: BaseObservation) -> np.ndarray:
         # One hot encoding of the time step
-        features = np.zeros(self.max_episode_length)
-        features[self.time_step] = 1
-        return features
+        # features = np.zeros(self.max_episode_length)
+        # features[self.time_step] = 1
+        return obs.rho
 
     def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
         self.grid2op_env.set_id(6)
