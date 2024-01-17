@@ -12,6 +12,7 @@ from grid2op.Reward import LinesCapacityReward
 from lightsim2grid import LightSimBackend
 import numpy as np
 from .OptimizerChooseCotrolMode import OptimCVXPY
+from tqdm import tqdm
 
 
 class Grid2OpControlOptimizationMode(Env):
@@ -65,20 +66,19 @@ class Grid2OpControlOptimizationMode(Env):
         self.grid2op_env.set_id(6)
         grid2op_obs = self.grid2op_env.reset()
         self.latest_obs = grid2op_obs
-        self.done = False
         self.time_step = 0
         obs = self.flatten_features(self.latest_obs)
         return obs, {}
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, dict]:
         grid2op_act = self.optimizer.act(action, self.latest_obs)
-        self.latest_obs, reward, self.done, info = self.grid2op_env.step(grid2op_act)
+        self.latest_obs, reward, done, info = self.grid2op_env.step(grid2op_act)
         self.time_step += 1
         obs = self.flatten_features(self.latest_obs)
         info["grid2op_redispatch"] = grid2op_act.redispatch
         info["grid2op_storage_p"] = grid2op_act.storage_p
         info["action"] = action
-        return obs, 3 + reward, self.done, False, info
+        return obs, 3 + reward, done, False, info
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)
@@ -95,5 +95,10 @@ class Grid2OpControlOptimizationMode(Env):
 
 if __name__ == "__main__":
     env = Grid2OpControlOptimizationMode()
-    env.reset()
-    env.step(env.action_space.sample())
+    obs, _ = env.reset()
+    i = 0
+    for i in tqdm(range(env.max_episode_length)):
+        obs, reward, done, _, _ = env.step(env.action_space.sample())
+        if done:
+            break
+    print("Done", i)

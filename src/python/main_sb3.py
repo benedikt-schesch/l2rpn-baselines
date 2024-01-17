@@ -33,7 +33,14 @@ def main(config_path: Path = Path("configs/config_target_env.json")):
     log_path = "logs/PPO_sb3/" + current_time
 
     # Define the model
-    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=log_path)
+    model = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        tensorboard_log=log_path,
+        gamma=1.0,
+        ent_coef=config["ent_coef"],
+    )
 
     # Define callbacks
     checkpoint_callback = CheckpointCallback(
