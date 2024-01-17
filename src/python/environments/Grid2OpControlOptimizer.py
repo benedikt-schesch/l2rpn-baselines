@@ -64,11 +64,11 @@ class Grid2OpControlOptimizationMode(Env):
 
     def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
         self.grid2op_env.set_id(6)
-        grid2op_obs = self.grid2op_env.reset()
-        self.latest_obs = grid2op_obs
+        self.latest_obs = self.grid2op_env.reset()
         self.time_step = 0
         obs = self.flatten_features(self.latest_obs)
-        return obs, {}
+        info = {"grid2op_obs": self.latest_obs}
+        return obs, info
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, dict]:
         grid2op_act = self.optimizer.act(action, self.latest_obs)
@@ -78,6 +78,7 @@ class Grid2OpControlOptimizationMode(Env):
         info["grid2op_redispatch"] = grid2op_act.redispatch
         info["grid2op_storage_p"] = grid2op_act.storage_p
         info["action"] = action
+        info["grid2op_obs"] = self.latest_obs
         return obs, 3 + reward, done, False, info
 
     def render(self, mode="rgb_array"):

@@ -56,18 +56,18 @@ class Grid2OpRedispatchStorage(Env):
 
     def flatten_features(self, obs: BaseObservation) -> np.ndarray:
         # One hot encoding of the time step
-        features = np.zeros(self.max_episode_length)
+        features = np.zeros(self.max_episode_length + 1)
         features[self.time_step] = 1
         return features
 
     def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
         self.grid2op_env.set_id(6)
-        grid2op_obs = self.grid2op_env.reset()
-        self.latest_obs = grid2op_obs
+        self.latest_obs = self.grid2op_env.reset()
         self.done = False
         self.time_step = 0
         obs = self.flatten_features(self.latest_obs)
-        return obs, {}
+        info = {"grid2op_obs": self.latest_obs}
+        return obs, info
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         grid2op_act = self.grid2op_env.action_space({})
@@ -79,6 +79,7 @@ class Grid2OpRedispatchStorage(Env):
         info["grid2op_redispatch"] = grid2op_act.redispatch
         info["grid2op_storage_p"] = grid2op_act.storage_p
         info["action"] = action
+        info["grid2op_obs"] = self.latest_obs
         return obs, 3 + reward, self.done, False, info
 
     def render(self, mode="rgb_array"):
