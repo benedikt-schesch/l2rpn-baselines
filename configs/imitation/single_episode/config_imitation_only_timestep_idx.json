@@ -1,0 +1,15 @@
+{
+  "ent_weight": 0.0,
+  "features": [
+    "timestep_idx"
+  ],
+  "idx_of_eval": [
+    6
+  ],
+  "idx_of_train": [
+    6
+  ],
+  "l2_weight": 0.0,
+  "lr": 0.0001,
+  "n_epochs": 5000
+}
