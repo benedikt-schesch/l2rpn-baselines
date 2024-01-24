@@ -9,6 +9,7 @@ plots
 plots/
 models/
 cache
+output.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

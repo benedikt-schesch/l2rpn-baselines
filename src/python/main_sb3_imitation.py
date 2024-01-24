@@ -3,6 +3,7 @@
 
 Refer to the jupyter notebooks for more detailed examples of how to use the algorithms.
 """
+from calendar import c
 import numpy as np
 from imitation.algorithms import bc
 from imitation.data import types
@@ -71,9 +72,11 @@ def plot_agent_actions(
         axs[idx].set_ylabel("Value")
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig(
-        os.path.join(save_dir, f"{plot_title.lower().replace(' ', '_')}_comparison.png")
+    fig_path = os.path.join(
+        save_dir, f"{plot_title.lower().replace(' ', '_')}_comparison.png"
     )
+    plt.savefig(fig_path)
+    wandb.log({plot_title: wandb.Image(fig_path)})
 
 
 def sample_expert_transitions(
@@ -123,8 +126,7 @@ def sample_expert_transitions(
 
 
 def main(config):
-    wandb.init(project="grid2op-imitation")
-    wandb.config.update(config)
+    wandb.init(project="grid2op-imitation", config=config, tags=[config["config_path"]])
     log_folder = Path(wandb.run.dir) / "logs"
     print("Logging to", log_folder)
 
@@ -178,20 +180,22 @@ def main(config):
     infos = {}
     for episode_id in env.episode_ids:
         infos[episode_id] = play_episode(bc_trainer.policy, env, episode_id)
-        print(f"Training episode {episode_id} finished after {len(infos)} timesteps")
+        print(
+            f"Training episode {episode_id} finished after {len(infos[episode_id])} timesteps"
+        )
         plot_agent_actions(
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_action"].storage_p,
             log_folder,
-            "Storage Actions",
+            f"Storage Actions Episode {episode_id}",
         )
         plot_agent_actions(
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_action"].redispatch,
             log_folder,
-            "Redispatch Actions",
+            f"Redispatch Actions Episode {episode_id}",
         )
         # Plot the gen_p
         plot_agent_actions(
@@ -199,7 +203,7 @@ def main(config):
             expert_infos[episode_id],
             lambda info: info["grid2op_obs"].gen_p,
             log_folder,
-            "Generation power",
+            f"Generation Power Episode {episode_id}",
         )
         # Plot the storage
         plot_agent_actions(
@@ -207,7 +211,7 @@ def main(config):
             expert_infos[episode_id],
             lambda info: info["grid2op_obs"].storage_power,
             log_folder,
-            "Storage power",
+            f"Storage power Episode {episode_id}",
         )
 
     # rewards, episode_lengths = evaluate_policy(
@@ -272,4 +276,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     config = read_config(args.config)
+    config["config_path"] = args.config
     main(config)
