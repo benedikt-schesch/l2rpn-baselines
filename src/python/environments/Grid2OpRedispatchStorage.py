@@ -74,9 +74,11 @@ class Grid2OpRedispatchStorage(Env):
     def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
         if seed is not None and seed not in self.episode_ids:
             np.random.seed(seed)
+            self.episode_id = np.random.choice(self.episode_ids)
         elif seed is not None and seed in self.episode_ids:
             self.episode_id = seed
-        self.episode_id = np.random.choice(self.episode_ids)
+        else:
+            self.episode_id = np.random.choice(self.episode_ids)
         self.grid2op_env.set_id(self.episode_id)
         self.latest_obs = self.grid2op_env.reset()
         self.done = False

@@ -3,7 +3,6 @@
 
 Refer to the jupyter notebooks for more detailed examples of how to use the algorithms.
 """
-from calendar import c
 import numpy as np
 from imitation.algorithms import bc
 from imitation.data import types
@@ -93,7 +92,7 @@ def sample_expert_transitions(
     else:
         episode_infos = {}
         for episode_id in tqdm(env.episode_ids):
-            episode_info = play_episode(expert, env, episode_id)
+            episode_info, _ = play_episode(expert, env, episode_id)
             episode_infos[episode_id] = episode_info
             print(f"Episode {episode_id} finished after {len(episode_info)} timesteps")
 
@@ -126,7 +125,11 @@ def sample_expert_transitions(
 
 
 def main(config):
-    wandb.init(project="grid2op-imitation", config=config, tags=[config["config_path"]])
+    wandb.init(
+        project="grid2op-imitation",
+        config=config,
+        tags=config["config_path"].split("/"),
+    )
     log_folder = Path(wandb.run.dir) / "logs"
     print("Logging to", log_folder)
 
@@ -179,9 +182,11 @@ def main(config):
     print("Evaluating the trained policy.")
     infos = {}
     for episode_id in env.episode_ids:
-        infos[episode_id] = play_episode(bc_trainer.policy, env, episode_id)
+        infos[episode_id], episode_length = play_episode(
+            bc_trainer.policy, env, episode_id
+        )
         print(
-            f"Training episode {episode_id} finished after {len(infos[episode_id])} timesteps"
+            f"Training episode {episode_id} finished after {episode_length} timesteps"
         )
         plot_agent_actions(
             infos[episode_id],
@@ -249,6 +254,7 @@ def play_episode(
         agent.reset(info)
     done = False
     infos = []
+    i = 0
     for i in tqdm(range(env.max_episode_length)):
         if isinstance(agent, ActorCriticPolicy):
             action = agent.predict(obs, deterministic=True)[0]
@@ -264,7 +270,7 @@ def play_episode(
         infos.append(info)
         if done:
             break
-    return infos
+    return infos, i
 
 
 if __name__ == "__main__":
