@@ -188,6 +188,7 @@ def main(config):
         print(
             f"Training episode {episode_id} finished after {episode_length} timesteps"
         )
+        assert len(infos[episode_id]) == episode_length + 1
         plot_agent_actions(
             infos[episode_id],
             expert_infos[episode_id],

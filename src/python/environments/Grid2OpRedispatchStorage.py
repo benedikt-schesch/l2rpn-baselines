@@ -50,10 +50,6 @@ class Grid2OpRedispatchStorage(Env):
 
     def flatten_features(self, obs: BaseObservation) -> np.ndarray:
         # One hot encoding of the time step
-        episode_idx = np.zeros(self.number_of_episodes)
-        episode_idx[self.episode_ids.index(self.episode_id)] = 1
-        timestep_idx = np.zeros(self.max_episode_length + 1)
-        timestep_idx[self.time_step] = 1
         features = []
         if "gen_p" in self.features:
             features.append(obs.gen_p)
@@ -66,8 +62,12 @@ class Grid2OpRedispatchStorage(Env):
         if "rho" in self.features:
             features.append(obs.rho)
         if "episode_idx" in self.features:
+            episode_idx = np.zeros(self.number_of_episodes)
+            episode_idx[self.episode_ids.index(self.episode_id)] = 1
             features.append(episode_idx)
         if "timestep_idx" in self.features:
+            timestep_idx = np.zeros(self.max_episode_length + 1)
+            timestep_idx[self.time_step] = 1
             features.append(timestep_idx)
         return np.concatenate(features)
 
