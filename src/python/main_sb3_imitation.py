@@ -4,23 +4,21 @@
 Refer to the jupyter notebooks for more detailed examples of how to use the algorithms.
 """
 import numpy as np
-from imitation.algorithms import bc
-from imitation.data import types
 from environments.Grid2OpRedispatchStorage import Grid2OpRedispatchStorage
-from imitation.util import logger as sb_logger
-from stable_baselines3.common.monitor import Monitor
 from agents.OptimCVXPY import OptimCVXPY
 from tqdm import tqdm
 from argparse import ArgumentParser
 from pathlib import Path
 import pickle
 import os
-from stable_baselines3.common.policies import ActorCriticPolicy
-import torch
 import wandb
 import json
 from typing import Union
 import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class ExpertAgent:
@@ -102,26 +100,39 @@ def sample_expert_transitions(
             pickle.dump(episode_infos, f)
             print(f"Episode infos stored in cache: {cache_file}")
 
-    # Construct transitions from episode_infos
-    keys = ["obs", "next_obs", "acts", "dones", "infos"]
-    trajectories = {k: [] for k in keys}
-    for episode_info in episode_infos.values():
-        for i, info in enumerate(episode_info):
-            if i + 1 >= len(episode_info):
-                continue
-            obs = info["obs"]
-            next_obs = episode_info[i + 1]["obs"]
-            trajectories["obs"].append(obs)
-            trajectories["next_obs"].append(next_obs)
-            trajectories["acts"].append(info["action"])
-            trajectories["dones"].append(info["done"])
-            trajectories["infos"].append({})
+    observations = [
+        info["obs"] for episode in episode_infos.values() for info in episode
+    ]
+    actions = [info["action"] for episode in episode_infos.values() for info in episode]
+    obs_tensor = torch.FloatTensor(observations)
+    acts_tensor = torch.FloatTensor(actions)
+    return TensorDataset(obs_tensor, acts_tensor), episode_infos
 
-    for k in keys:
-        trajectories[k] = np.array(trajectories[k])
 
-    result = types.Transitions(**trajectories)
-    return result, episode_infos
+class ActorCriticNetwork(nn.Module):
+    def __init__(self, obs_space, action_space):
+        super(ActorCriticNetwork, self).__init__()
+        # Define network architecture here
+        self.fc = nn.Sequential(
+            nn.Linear(obs_space.shape[0], 256),
+            nn.ReLU(),
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Linear(64, action_space.shape[0]),
+        )
+
+    def forward(self, x):
+        return self.fc(x)
+
+
+def train_bc_model(demonstrations, policy_net, optimizer, loss_fn, n_epochs):
+    for epoch in tqdm(range(n_epochs)):
+        for obs, acts in DataLoader(demonstrations, batch_size=32, shuffle=True):
+            optimizer.zero_grad()
+            predicted_actions = policy_net(obs)
+            loss = loss_fn(predicted_actions, acts)
+            loss.backward()
+            optimizer.step()
 
 
 def main(config):
@@ -137,35 +148,19 @@ def main(config):
         episode_ids=config["idx_of_train"], features=config["features"]
     )
     expert = ExpertAgent(env)
-    policy = ActorCriticPolicy(
-        env.observation_space,
-        env.action_space,
-        net_arch=[256, 64],
-        lr_schedule=lambda _: config["lr"],
+
+    demonstrations, expert_infos = sample_expert_transitions(expert, env)
+
+    evaluation_env = Grid2OpRedispatchStorage(
+        episode_ids=config["idx_of_eval"], features=config["features"]
     )
 
-    transitions, expert_infos = sample_expert_transitions(expert, env)
-    bc_trainer = bc.BC(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        policy=policy,
-        demonstrations=transitions,
-        ent_weight=config["ent_weight"],
-        l2_weight=config["l2_weight"],
-        rng=np.random.default_rng(0),
-        optimizer_kwargs=dict(lr=config["lr"]),
-        device="cpu",
-        custom_logger=sb_logger.configure(
-            folder=log_folder,
-            format_strs=["stdout", "csv", "wandb"],
-        ),
-    )
+    # Initialize policy network, optimizer, and loss function
+    policy_net = ActorCriticNetwork(env.observation_space, env.action_space)
+    optimizer = optim.Adam(policy_net.parameters(), lr=config["lr"])
+    loss_fn = nn.MSELoss()  # or nn.CrossEntropyLoss() for discrete actions
 
-    evaluation_env = Monitor(
-        Grid2OpRedispatchStorage(
-            episode_ids=config["idx_of_eval"], features=config["features"]
-        )
-    )
+    train_bc_model(demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"])
 
     # print("Evaluating the untrained policy.")
     # rewards, episode_lengths = evaluate_policy(
@@ -177,14 +172,11 @@ def main(config):
     # print(f"Testing Episode lengths before training: {episode_lengths}")
 
     print("Training a policy using Behavior Cloning")
-    bc_trainer.train(n_epochs=config["n_epochs"])
 
     print("Evaluating the trained policy.")
     infos = {}
     for episode_id in env.episode_ids:
-        infos[episode_id], episode_length = play_episode(
-            bc_trainer.policy, env, episode_id
-        )
+        infos[episode_id], episode_length = play_episode(policy_net, env, episode_id)
         print(
             f"Training episode {episode_id} finished after {episode_length} timesteps"
         )
@@ -230,7 +222,7 @@ def main(config):
     # print(f"Testing Episode lengths after training: {episode_lengths}")
 
     # Save the policy
-    torch.save(bc_trainer.policy, log_folder / "policy.pt")
+    torch.save(policy_net, log_folder / "policy.pt")
     wandb.save(str(log_folder / "policy.pt"))
     # Clean up
     env.close()
@@ -246,7 +238,7 @@ def read_config(config_file):
 
 
 def play_episode(
-    agent: Union[ActorCriticPolicy, ExpertAgent],
+    agent: Union[ActorCriticNetwork, ExpertAgent],
     env: Grid2OpRedispatchStorage,
     episode_id: int,
 ):
@@ -257,7 +249,7 @@ def play_episode(
     infos = []
     i = 0
     for i in tqdm(range(env.max_episode_length)):
-        if isinstance(agent, ActorCriticPolicy):
+        if isinstance(agent, ActorCriticNetwork):
             action = agent.predict(obs, deterministic=True)[0]
         else:
             action = agent.predict(obs, info)
