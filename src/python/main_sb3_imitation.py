@@ -50,6 +50,7 @@ def plot_agent_actions(
     agent_result,
     expert_result,
     value_extractor,
+    loss_fn,  # Loss function
     save_dir: Path,
     plot_title: str,
 ):
@@ -60,6 +61,9 @@ def plot_agent_actions(
     agent_actions = [value_extractor(info) for info in agent_result]
     expert_actions = [value_extractor(info) for info in expert_result]
 
+    # Initialize list to store losses
+    losses = []
+
     for idx in range(num_items):
         axs[idx].plot([value[idx] for value in agent_actions], label="Agent")
         axs[idx].plot([value[idx] for value in expert_actions], label="Expert")
@@ -68,12 +72,23 @@ def plot_agent_actions(
         axs[idx].set_xlabel("Timestep")
         axs[idx].set_ylabel("Value")
 
+    # Calculate loss for this dimension at each timestep and add to losses list
+    for agent_action, expert_action in zip(agent_result, expert_result):
+        loss = loss_fn(
+            torch.tensor(agent_action["action"]), torch.tensor(expert_action["action"])
+        )
+        losses.append(loss.item())
+
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     fig_path = os.path.join(
         save_dir, f"{plot_title.lower().replace(' ', '_')}_comparison.png"
     )
     plt.savefig(fig_path)
     wandb.log({plot_title: wandb.Image(fig_path)})
+
+    # Compute and print the average loss
+    avg_loss = sum(losses) / len(losses) if losses else 0
+    print(f"Average loss for {plot_title}: {avg_loss:.4f}")
 
 
 def sample_expert_transitions(
@@ -114,25 +129,54 @@ class ActorCriticNetwork(nn.Module):
         super(ActorCriticNetwork, self).__init__()
         # Define network architecture here
         self.fc = nn.Sequential(
-            nn.Linear(obs_space.shape[0], 256),
+            nn.Linear(obs_space.shape[0], 512),
             nn.ReLU(),
-            nn.Linear(256, 64),
+            nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Linear(64, action_space.shape[0]),
+            nn.Linear(256, action_space.shape[0]),
+            nn.Tanh(),
         )
+        self.action_space = action_space
+        self.th_high_action = torch.tensor(self.action_space.high, dtype=torch.float32)
+        self.th_low_action = torch.tensor(self.action_space.low, dtype=torch.float32)
 
     def forward(self, x):
-        return self.fc(x)
+        res = self.fc(x)
+        # Rescale the output to match the action space
+        return (
+            res * (self.th_high_action - self.th_low_action) / 2.0
+            + (self.th_high_action + self.th_low_action) / 2.0
+        )
 
 
 def train_bc_model(demonstrations, policy_net, optimizer, loss_fn, n_epochs):
+    # Log hyperparameters (if any)
+    wandb.config.update(
+        {
+            "learning_rate": optimizer.param_groups[0]["lr"],
+            "epochs": n_epochs,
+            # add other hyperparameters here
+        }
+    )
+
     for epoch in tqdm(range(n_epochs)):
+        total_loss = 0
         for obs, acts in DataLoader(demonstrations, batch_size=32, shuffle=True):
             optimizer.zero_grad()
             predicted_actions = policy_net(obs)
             loss = loss_fn(predicted_actions, acts)
             loss.backward()
             optimizer.step()
+            total_loss += loss.item()
+
+        # Calculate and log average loss for the epoch
+        avg_loss = total_loss / len(demonstrations)
+        wandb.log({"epoch": epoch, "loss": avg_loss})
+
+    # Save and log the final model
+    model_path = Path(wandb.run.dir) / "policy.pt"
+    torch.save(policy_net.state_dict(), model_path)
+    wandb.save(str(model_path))
 
 
 def main(config):
@@ -141,9 +185,6 @@ def main(config):
         config=config,
         tags=config["config_path"].split("/"),
     )
-    log_folder = Path(wandb.run.dir) / "logs"
-    print("Logging to", log_folder)
-
     env = Grid2OpRedispatchStorage(
         episode_ids=config["idx_of_train"], features=config["features"]
     )
@@ -174,6 +215,8 @@ def main(config):
     print("Training a policy using Behavior Cloning")
 
     print("Evaluating the trained policy.")
+    img_folder = Path(wandb.run.dir) / "images"
+    img_folder.mkdir(exist_ok=True)
     infos = {}
     for episode_id in env.episode_ids:
         infos[episode_id], episode_length = play_episode(policy_net, env, episode_id)
@@ -185,14 +228,16 @@ def main(config):
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_action"].storage_p,
-            log_folder,
+            loss_fn,
+            img_folder,
             f"Storage Actions Episode {episode_id}",
         )
         plot_agent_actions(
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_action"].redispatch,
-            log_folder,
+            loss_fn,
+            img_folder,
             f"Redispatch Actions Episode {episode_id}",
         )
         # Plot the gen_p
@@ -200,7 +245,8 @@ def main(config):
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_obs"].gen_p,
-            log_folder,
+            loss_fn,
+            img_folder,
             f"Generation Power Episode {episode_id}",
         )
         # Plot the storage
@@ -208,7 +254,8 @@ def main(config):
             infos[episode_id],
             expert_infos[episode_id],
             lambda info: info["grid2op_obs"].storage_power,
-            log_folder,
+            loss_fn,
+            img_folder,
             f"Storage power Episode {episode_id}",
         )
 
@@ -221,14 +268,11 @@ def main(config):
     # )
     # print(f"Testing Episode lengths after training: {episode_lengths}")
 
-    # Save the policy
-    torch.save(policy_net, log_folder / "policy.pt")
-    wandb.save(str(log_folder / "policy.pt"))
     # Clean up
     env.close()
     evaluation_env.close()
+    print("Done logged to", str(wandb.run.dir))
     wandb.finish()
-    print("Done logged to", log_folder)
 
 
 def read_config(config_file):
@@ -250,7 +294,7 @@ def play_episode(
     i = 0
     for i in tqdm(range(env.max_episode_length)):
         if isinstance(agent, ActorCriticNetwork):
-            action = agent.predict(obs, deterministic=True)[0]
+            action = agent(torch.FloatTensor(obs)).detach().numpy()
         else:
             action = agent.predict(obs, info)
         info = {}
