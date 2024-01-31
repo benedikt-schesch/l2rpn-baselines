@@ -10,17 +10,14 @@ from stable_baselines3.common.monitor import Monitor
 from environments.Grid2OpRedispatchStorage import Grid2OpRedispatchStorage
 import wandb
 from wandb.integration.sb3 import WandbCallback
-from pathlib import Path
 import json
 from argparse import ArgumentParser
-from main_sb3_imitation import ActorCriticPolicy
 
 
 def fine_tune_model(model_path, env):
-    wandb.init(
+    run = wandb.init(
         project="sb3-imitation-finetune",
         sync_tensorboard=True,
-        monitor_gym=True,
         save_code=True,
     )
     policy = torch.load(model_path)
@@ -30,15 +27,16 @@ def fine_tune_model(model_path, env):
         env=env,
         policy_kwargs=net_kwargs,
         gamma=1.0,
-        learning_rate=0.00001,
+        learning_rate=0.0001,
         device="cpu",
         verbose=2,
+        tensorboard_log=f"runs/{run.id}",
     )
     model.policy = policy
 
-    callback = WandbCallback()
+    callback = WandbCallback(verbose=2)
     model.learn(
-        total_timesteps=100000,
+        total_timesteps=1000000,
         reset_num_timesteps=False,
         callback=callback,
         progress_bar=True,
