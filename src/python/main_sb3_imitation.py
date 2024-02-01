@@ -20,6 +20,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class ExpertAgent:
     def __init__(self, env: Grid2OpRedispatchStorage):
@@ -137,8 +139,14 @@ class ActorCriticNetwork(nn.Module):
             nn.Tanh(),
         )
         self.action_space = action_space
-        self.th_high_action = torch.tensor(self.action_space.high, dtype=torch.float32)
-        self.th_low_action = torch.tensor(self.action_space.low, dtype=torch.float32)
+        self.th_high_action = nn.Parameter(
+            torch.tensor(self.action_space.high, dtype=torch.float32),
+            requires_grad=False,
+        )
+        self.th_low_action = nn.Parameter(
+            torch.tensor(self.action_space.low, dtype=torch.float32),
+            requires_grad=False,
+        )
 
     def forward(self, x):
         res = self.fc(x)
@@ -158,10 +166,11 @@ def train_bc_model(demonstrations, policy_net, optimizer, loss_fn, n_epochs):
             # add other hyperparameters here
         }
     )
-
+    policy_net.to(device)
     for epoch in tqdm(range(n_epochs)):
         total_loss = 0
         for obs, acts in DataLoader(demonstrations, batch_size=32, shuffle=True):
+            obs, acts = obs.to(device), acts.to(device)
             optimizer.zero_grad()
             predicted_actions = policy_net(obs)
             loss = loss_fn(predicted_actions, acts)
@@ -202,6 +211,8 @@ def main(config):
     loss_fn = nn.MSELoss()  # or nn.CrossEntropyLoss() for discrete actions
 
     train_bc_model(demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"])
+    policy_net.eval()
+    policy_net.to(torch.device("cpu"))
 
     print("Training a policy using Behavior Cloning")
 
