@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Define the array of rho_safe and rho_danger values
 rho_safe_values=(0.0 0.95)
