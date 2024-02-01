@@ -96,7 +96,7 @@ class Grid2OpRedispatchStorage(Env):
         obs = self.flatten_features(self.latest_obs)
         info["grid2op_action"] = grid2op_act
         info["grid2op_obs"] = self.latest_obs
-        return obs, 3 + reward, self.done, False, info
+        return obs, (3 + reward) / (3.0 * 288), self.done, False, info
 
     def render(self, mode="rgb_array"):
         return self.grid2op_env.render(mode)

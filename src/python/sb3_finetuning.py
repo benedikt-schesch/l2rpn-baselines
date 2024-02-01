@@ -27,7 +27,7 @@ def fine_tune_model(model_path, env):
         env=env,
         policy_kwargs=net_kwargs,
         gamma=1.0,
-        learning_rate=0.0001,
+        learning_rate=0.0000001,
         device="cpu",
         verbose=2,
         tensorboard_log=f"runs/{run.id}",
@@ -35,9 +35,11 @@ def fine_tune_model(model_path, env):
     model.policy = policy
 
     callback = WandbCallback(verbose=2)
+    for layer in [model.policy.mlp_extractor.policy_net, model.policy.action_net]:
+        for p in layer.parameters():
+            p.requires_grad_(False)
     model.learn(
         total_timesteps=1000000,
-        reset_num_timesteps=False,
         callback=callback,
         progress_bar=True,
     )
