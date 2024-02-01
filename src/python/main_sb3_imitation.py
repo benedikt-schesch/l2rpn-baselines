@@ -129,11 +129,11 @@ class ActorCriticNetwork(nn.Module):
         super(ActorCriticNetwork, self).__init__()
         # Define network architecture here
         self.fc = nn.Sequential(
-            nn.Linear(obs_space.shape[0], 512),
+            nn.Linear(obs_space.shape[0], 1024),
             nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(1024, 512),
             nn.ReLU(),
-            nn.Linear(256, action_space.shape[0]),
+            nn.Linear(512, action_space.shape[0]),
             nn.Tanh(),
         )
         self.action_space = action_space
@@ -203,15 +203,6 @@ def main(config):
 
     train_bc_model(demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"])
 
-    # print("Evaluating the untrained policy.")
-    # rewards, episode_lengths = evaluate_policy(
-    #     bc_trainer.policy,  # type: ignore[arg-type]
-    #     evaluation_env,
-    #     n_eval_episodes=3,
-    #     return_episode_rewards=True,
-    # )
-    # print(f"Testing Episode lengths before training: {episode_lengths}")
-
     print("Training a policy using Behavior Cloning")
 
     print("Evaluating the trained policy.")
@@ -258,15 +249,6 @@ def main(config):
             img_folder,
             f"Storage power Episode {episode_id}",
         )
-
-    # rewards, episode_lengths = evaluate_policy(
-    #     bc_trainer.policy,  # type: ignore[arg-type]
-    #     evaluation_env,
-    #     n_eval_episodes=10,
-    #     return_episode_rewards=True,
-    #     deterministic=True,
-    # )
-    # print(f"Testing Episode lengths after training: {episode_lengths}")
 
     # Clean up
     env.close()
@@ -315,7 +297,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/imitation/multiple_episodes/config_imitation_all_episode_timestep_idx.json",
+        default="configs/imitation/single_episode/config_imitation_all_timestep_idx.json",
     )
     args = parser.parse_args()
     config = read_config(args.config)
