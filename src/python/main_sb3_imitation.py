@@ -269,13 +269,12 @@ def main(config):
     demonstrations, expert_infos = sample_expert_transitions(expert, env)
     loss_fn = nn.MSELoss()
 
+    # Train policy on current dataset
+    policy_net = ActorCriticNetwork(env.observation_space, env.action_space)
+    optimizer = optim.Adam(policy_net.parameters(), lr=config["lr"])
+
     for i in range(config["dagger_iterations"]):
         print(f"DAgger Iteration {i+1}/{config['dagger_iterations']}")
-
-        # Train policy on current dataset
-        policy_net = ActorCriticNetwork(env.observation_space, env.action_space)
-        optimizer = optim.Adam(policy_net.parameters(), lr=config["lr"])
-
         train_bc_model(
             demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"]
         )
