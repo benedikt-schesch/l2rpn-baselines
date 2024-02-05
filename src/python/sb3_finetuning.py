@@ -28,6 +28,7 @@ def fine_tune_model(model_path, env):
         policy_kwargs=net_kwargs,
         gamma=1.0,
         learning_rate=0.0000001,
+        gae_lambda=1.0,
         device="cpu",
         verbose=2,
         tensorboard_log=f"runs/{run.id}",
