@@ -13,7 +13,7 @@ import pickle
 import os
 import wandb
 import json
-from typing import Union
+from typing import Union, Tuple, List
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -188,9 +188,75 @@ def train_bc_model(demonstrations, policy_net, optimizer, loss_fn, n_epochs):
     wandb.save(str(model_path))
 
 
+@torch.no_grad()
+def collect_and_label_with_expert(
+    policy_net: ActorCriticNetwork,
+    expert: ExpertAgent,
+    env: Grid2OpRedispatchStorage,
+) -> Tuple[List[torch.Tensor], List[np.ndarray]]:
+    """
+    Collects data from the policy and labels it using the expert's actions.
+
+    Parameters:
+    - policy_net: The current policy network being trained.
+    - expert: The expert agent used for querying the correct actions.
+    - env: The environment to interact with.
+    - num_episodes: Number of episodes to run for data collection.
+
+    Returns:
+    - An aggregated dataset of observations and expert-labeled actions.
+    """
+    aggregated_observations = []
+    aggregated_actions = []
+    policy_net.to("cpu")
+
+    for episode in env.episode_ids:
+        obs, info = env.reset(episode)
+        if isinstance(expert, ExpertAgent):
+            expert.reset(info)
+        done = False
+
+        while not done:
+            obs = torch.FloatTensor(obs)
+            # Use the policy network to decide on an action
+            policy_action = policy_net(obs)
+            # Query the expert for the correct action based on the current observation
+            expert_action = expert.predict(obs, info)
+
+            # Store the observation and expert's action
+            aggregated_observations.append(obs)
+            aggregated_actions.append(expert_action)
+
+            # Step the environment
+            obs, reward, done, _, info = env.step(policy_action.numpy())
+
+    # Convert lists to appropriate tensor or array formats as required for training
+    return aggregated_observations, aggregated_actions
+
+
+def aggregate_datasets(
+    existing_dataset: TensorDataset,
+    new_observations: List[torch.Tensor],
+    new_actions: List[np.ndarray],
+) -> TensorDataset:
+    """
+    Aggregates the new observations and actions with the existing dataset.
+    """
+    existing_observations, existing_actions = existing_dataset.tensors
+    new_observations_tensor = torch.stack(new_observations)
+    new_actions_tensor = torch.tensor(np.stack(new_actions))
+
+    aggregated_observations = torch.cat(
+        [existing_observations, new_observations_tensor], dim=0
+    )
+    aggregated_actions = torch.cat([existing_actions, new_actions_tensor], dim=0)
+
+    return TensorDataset(aggregated_observations, aggregated_actions)
+
+
 def main(config):
     wandb.init(
-        project="grid2op-imitation",
+        project="grid2op-imitation-dagger",
         config=config,
         tags=config["config_path"].split("/"),
     )
@@ -199,71 +265,86 @@ def main(config):
     )
     expert = ExpertAgent(env)
 
+    # Start with expert demonstrations
     demonstrations, expert_infos = sample_expert_transitions(expert, env)
+    loss_fn = nn.MSELoss()
 
-    evaluation_env = Grid2OpRedispatchStorage(
-        episode_ids=config["idx_of_eval"], features=config["features"]
-    )
+    for i in range(config["dagger_iterations"]):
+        print(f"DAgger Iteration {i+1}/{config['dagger_iterations']}")
 
-    # Initialize policy network, optimizer, and loss function
-    policy_net = ActorCriticNetwork(env.observation_space, env.action_space)
-    optimizer = optim.Adam(policy_net.parameters(), lr=config["lr"])
-    loss_fn = nn.MSELoss()  # or nn.CrossEntropyLoss() for discrete actions
+        # Train policy on current dataset
+        policy_net = ActorCriticNetwork(env.observation_space, env.action_space)
+        optimizer = optim.Adam(policy_net.parameters(), lr=config["lr"])
 
-    train_bc_model(demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"])
-    policy_net.eval()
-    policy_net.to(torch.device("cpu"))
+        train_bc_model(
+            demonstrations, policy_net, optimizer, loss_fn, config["n_epochs"]
+        )
 
-    print("Training a policy using Behavior Cloning")
+        new_observations, new_actions = collect_and_label_with_expert(
+            policy_net, expert, env
+        )
 
-    print("Evaluating the trained policy.")
-    img_folder = Path(wandb.run.dir) / "images"
-    img_folder.mkdir(exist_ok=True)
-    infos = {}
-    for episode_id in env.episode_ids:
-        infos[episode_id], episode_length = play_episode(policy_net, env, episode_id)
-        print(
-            f"Training episode {episode_id} finished after {episode_length} timesteps"
+        # Aggregate datasets
+        demonstrations = aggregate_datasets(
+            demonstrations, new_observations, new_actions
         )
-        assert len(infos[episode_id]) == episode_length + 1
-        plot_agent_actions(
-            infos[episode_id],
-            expert_infos[episode_id],
-            lambda info: info["grid2op_action"].storage_p,
-            loss_fn,
-            img_folder,
-            f"Storage Actions Episode {episode_id}",
-        )
-        plot_agent_actions(
-            infos[episode_id],
-            expert_infos[episode_id],
-            lambda info: info["grid2op_action"].redispatch,
-            loss_fn,
-            img_folder,
-            f"Redispatch Actions Episode {episode_id}",
-        )
-        # Plot the gen_p
-        plot_agent_actions(
-            infos[episode_id],
-            expert_infos[episode_id],
-            lambda info: info["grid2op_obs"].gen_p,
-            loss_fn,
-            img_folder,
-            f"Generation Power Episode {episode_id}",
-        )
-        # Plot the storage
-        plot_agent_actions(
-            infos[episode_id],
-            expert_infos[episode_id],
-            lambda info: info["grid2op_obs"].storage_power,
-            loss_fn,
-            img_folder,
-            f"Storage power Episode {episode_id}",
-        )
+
+        policy_net.eval()
+        policy_net.to(torch.device("cpu"))
+
+        # Save the model
+        model_path = Path(wandb.run.dir) / f"policy_{i+1}.pt"
+        torch.save(policy_net, model_path)
+
+        print("Evaluating the trained policy.")
+        img_folder = Path(wandb.run.dir) / f"images_{i+1}"
+        img_folder.mkdir(exist_ok=True)
+        infos = {}
+        for episode_id in env.episode_ids:
+            infos[episode_id], episode_length = play_episode(
+                policy_net, env, episode_id
+            )
+            print(
+                f"Training episode {episode_id} finished after {episode_length} timesteps"
+            )
+            assert len(infos[episode_id]) == episode_length + 1
+            plot_agent_actions(
+                infos[episode_id],
+                expert_infos[episode_id],
+                lambda info: info["grid2op_action"].storage_p,
+                loss_fn,
+                img_folder,
+                f"Storage Actions Episode {episode_id}",
+            )
+            plot_agent_actions(
+                infos[episode_id],
+                expert_infos[episode_id],
+                lambda info: info["grid2op_action"].redispatch,
+                loss_fn,
+                img_folder,
+                f"Redispatch Actions Episode {episode_id}",
+            )
+            # Plot the gen_p
+            plot_agent_actions(
+                infos[episode_id],
+                expert_infos[episode_id],
+                lambda info: info["grid2op_obs"].gen_p,
+                loss_fn,
+                img_folder,
+                f"Generation Power Episode {episode_id}",
+            )
+            # Plot the storage
+            plot_agent_actions(
+                infos[episode_id],
+                expert_infos[episode_id],
+                lambda info: info["grid2op_obs"].storage_power,
+                loss_fn,
+                img_folder,
+                f"Storage power Episode {episode_id}",
+            )
 
     # Clean up
     env.close()
-    evaluation_env.close()
     print("Done logged to", str(wandb.run.dir))
     wandb.finish()
 
@@ -308,7 +389,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/imitation/single_episode/config_imitation_all_timestep_idx.json",
+        default="configs/imitation/multiple_episodes/config_imitation_all_episode_timestep_idx.json",
     )
     args = parser.parse_args()
     config = read_config(args.config)

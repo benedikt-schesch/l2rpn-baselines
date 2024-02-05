@@ -1,4 +1,5 @@
 {
+  "dagger_iterations": 5,
   "ent_weight": 0.0,
   "features": [
     "gen_p",
