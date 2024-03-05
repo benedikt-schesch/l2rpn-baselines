@@ -39,7 +39,7 @@ def train():
 
     max_ep_len = 50000  # max timesteps in one episode
     max_training_episodes = (
-        100000  # break training loop if timeteps > max_training_episodes
+        10000  # break training loop if timeteps > max_training_episodes
     )
 
     print_freq = 1  # print avg reward in the interval (in num timesteps)
@@ -185,6 +185,7 @@ def train():
             state, _ = env.reset()
             current_ep_reward = 0
             done = False
+            steps = 0
 
             while not done:
                 # select action with policy
@@ -198,64 +199,64 @@ def train():
                 time_step += 1
                 progress.update(task_steps, completed=env.get_time_step())
                 current_ep_reward += reward
-
-                # update PPO agent
-                if time_step % update_timestep == 0:
-                    ppo_agent.update()
-                    ppo_agent.entropy_loss_weight = max(
-                        entropy_min_loss,
-                        entropy_max_loss
-                        - (entropy_max_loss - entropy_min_loss)
-                        * time_step
-                        / max_training_episodes,
-                    )
-
                 # break; if the episode is over
+                steps += 1
                 if terminated:
                     break
+
+            ppo_agent.update()
+            ppo_agent.entropy_loss_weight = max(
+                entropy_min_loss,
+                entropy_max_loss
+                - (entropy_max_loss - entropy_min_loss)
+                * time_step
+                / max_training_episodes,
+            )
+
             progress.update(task_episodes, advance=1)
 
-            if i_episode % print_freq == 0 and print_running_episodes != 0:
-                # print average reward till last episode
-                print_avg_reward = print_running_reward / print_running_episodes
-                print_avg_reward = round(float(print_avg_reward), 2)
+            # if i_episode % print_freq == 0 and print_running_episodes != 0:
+            # print average reward till last episode
 
-                print(
-                    "Episode : {} \t\t Timestep : {} \t\t Average Reward : {} Entropy Loss weight: {}".format(
-                        i_episode,
-                        time_step,
-                        print_avg_reward,
-                        ppo_agent.entropy_loss_weight,
-                    )
+            print(
+                "Episode : {} \t\t Timestep : {} \t\t Reward : {} Entropy Loss weight: {}".format(
+                    i_episode,
+                    time_step,
+                    current_ep_reward,
+                    ppo_agent.entropy_loss_weight,
                 )
+            )
 
-                print_running_reward = 0
-                print_running_episodes = 0
-
-            # save model weights
-            if i_episode % save_model_freq == 0:
-                print(
-                    "--------------------------------------------------------------------------------------------"
-                )
-                curr_dir = checkpoint_dir + "/time_step_" + str(time_step)
-                if not os.path.exists(curr_dir):
-                    os.makedirs(curr_dir)
-                checkpoint_path = curr_dir + "/PPO_{}_{}_{}.pth".format(
-                    env_name, random_seed, time_step
-                )
-                print("Saving model at : " + checkpoint_path)
-                ppo_agent.save(checkpoint_path)
-                draw_agent(env, ppo_agent, curr_dir)
-                print("Model saved")
-                print(
-                    "Elapsed Time  : ",
-                    datetime.now().replace(microsecond=0) - start_time,
-                )
-                print(
-                    "--------------------------------------------------------------------------------------------"
-                )
+            # # save model weights
+            # if i_episode % save_model_freq == 0:
+            #     print(
+            #         "--------------------------------------------------------------------------------------------"
+            #     )
+            #     curr_dir = checkpoint_dir + "/time_step_" + str(time_step)
+            #     if not os.path.exists(curr_dir):
+            #         os.makedirs(curr_dir)
+            #     checkpoint_path = curr_dir + "/PPO_{}_{}_{}.pth".format(
+            #         env_name, random_seed, time_step
+            #     )
+            #     print("Saving model at : " + checkpoint_path)
+            #     ppo_agent.save(checkpoint_path)
+            #     draw_agent(env, ppo_agent, curr_dir)
+            #     print("Model saved")
+            #     print(
+            #         "Elapsed Time  : ",
+            #         datetime.now().replace(microsecond=0) - start_time,
+            #     )
+            #     print(
+            #         "--------------------------------------------------------------------------------------------"
+            #     )
             i_episode += 1
-            wandb.log({"reward": current_ep_reward, "timestep": time_step})
+            wandb.log(
+                {
+                    "reward": current_ep_reward,
+                    "timestep": time_step,
+                    "episode timesteps": steps,
+                }
+            )
             print_running_reward += current_ep_reward
             print_running_episodes += 1
             progress.remove_task(task_steps)

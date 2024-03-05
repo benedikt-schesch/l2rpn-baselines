@@ -67,6 +67,9 @@ class Grid2OpEnvRedispatchCurtail(Env):
             -self.grid2op_env.observation_space.gen_max_ramp_down,  # type: ignore
         )
 
+        self.max_len = self.grid2op_env.chronics_handler.max_timestep()
+        print(f"Max len: {self.max_len}")
+
     def denormalize_action(self, action: torch.Tensor) -> torch.Tensor:
         action = action * self.action_norm_factor
         # action["redispatch"] = action["redispatch"] * self.action_norm_factor
@@ -117,7 +120,8 @@ class Grid2OpEnvRedispatchCurtail(Env):
         self.grid2op_obs, reward, done, info = self.grid2op_env.step(grid2op_action)
         self.time_step += 1
         reward, done, info = self.play_until_next_contigency(reward, done, info)
-        return self.observe(), reward, done, False, info
+        reward = (3 + reward) / (self.max_len * 0.3)
+        return self.observe(), 3 + reward, done, False, info
 
     def get_time_step(self) -> int:
         return self.time_step

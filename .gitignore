@@ -6,6 +6,9 @@ PPO_preTrained/
 wandb
 .ruff_cache
 plots/
+cache
+models
+output.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
